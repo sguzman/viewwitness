@@ -11,9 +11,7 @@ fn pathological_editor_rederives_its_overlap() {
     let overlap = derived
         .iter()
         .find(|relation| {
-            relation.kind == "overlaps"
-                && relation.from == "inspector"
-                && relation.to == "preview"
+            relation.kind == "overlaps" && relation.from == "inspector" && relation.to == "preview"
         })
         .expect("inspector should overlap preview");
 
@@ -28,9 +26,7 @@ fn popup_overlap_requires_cross_parent_analysis() {
 
     let default_relations = derive_geometry_relations(&witness);
     assert!(!default_relations.iter().any(|relation| {
-        relation.kind == "overlaps"
-            && relation.from == "popup"
-            && relation.to == "row-under-popup"
+        relation.kind == "overlaps" && relation.from == "popup" && relation.to == "row-under-popup"
     }));
 
     let relations = derive_geometry_relations_with_options(
@@ -53,6 +49,7 @@ fn popup_overlap_requires_cross_parent_analysis() {
 }
 
 fn load(path: &str) -> viewwitness::Witness {
-    let source = fs::read_to_string(path).unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
+    let source =
+        fs::read_to_string(path).unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
     from_yaml(&source).unwrap_or_else(|error| panic!("failed to parse {path}: {error}"))
 }
