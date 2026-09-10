@@ -24,7 +24,7 @@ fn main() {
             });
             ui.checkbox(&mut enabled, "Enabled");
             ui.add(egui::Slider::new(&mut amount, 0.0..=10.0).text("Amount"));
-            ui.button("Apply");
+            let _ = ui.button("Apply");
         },
     );
 
