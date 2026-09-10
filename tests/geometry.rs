@@ -31,9 +31,11 @@ fn default_geometry_is_conservative_and_nonredundant() {
     assert!(!has(&relations, "overlaps", "preview", "slider"));
 
     // Explicitly hidden nodes are excluded by default.
-    assert!(!relations.iter().any(|relation| {
-        relation.from == "hidden" || relation.to == "hidden"
-    }));
+    assert!(
+        !relations
+            .iter()
+            .any(|relation| { relation.from == "hidden" || relation.to == "hidden" })
+    );
 }
 
 #[test]
@@ -43,9 +45,7 @@ fn overlap_carries_quantitative_evidence() {
     let overlap = relations
         .iter()
         .find(|relation| {
-            relation.kind == "overlaps"
-                && relation.from == "inspector"
-                && relation.to == "preview"
+            relation.kind == "overlaps" && relation.from == "inspector" && relation.to == "preview"
         })
         .expect("inspector/preview overlap");
 
