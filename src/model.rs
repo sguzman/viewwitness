@@ -169,7 +169,10 @@ impl Witness {
                     .as_deref()
                     .is_some_and(|author_id| author_id.trim().is_empty())
                 {
-                    issues.push(format!("node {} identity author_id must not be empty", node.id));
+                    issues.push(format!(
+                        "node {} identity author_id must not be empty",
+                        node.id
+                    ));
                 }
             }
 
