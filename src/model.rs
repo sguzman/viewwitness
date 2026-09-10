@@ -97,12 +97,25 @@ impl Witness {
     pub fn validation_issues(&self) -> Vec<String> {
         let mut issues = Vec::new();
         let mut ids = HashSet::new();
+        let viewport = self.capture.viewport;
 
         if self.viewwitness_version.trim().is_empty() {
             issues.push("viewwitness_version must not be empty".into());
         }
-        if self.capture.viewport.width < 0.0 || self.capture.viewport.height < 0.0 {
+        if self.capture.source.trim().is_empty() {
+            issues.push("capture source must not be empty".into());
+        }
+        if !viewport.width.is_finite()
+            || !viewport.height.is_finite()
+            || !viewport.scale_factor.is_finite()
+        {
+            issues.push("viewport geometry must be finite".into());
+        }
+        if viewport.width < 0.0 || viewport.height < 0.0 {
             issues.push("viewport dimensions must be non-negative".into());
+        }
+        if viewport.scale_factor <= 0.0 {
+            issues.push("viewport scale_factor must be positive".into());
         }
 
         for node in &self.nodes {
@@ -112,10 +125,21 @@ impl Witness {
                 issues.push(format!("duplicate node id: {}", node.id));
             }
 
-            if let Some(bounds) = node.bounds
-                && (bounds.width < 0.0 || bounds.height < 0.0)
-            {
-                issues.push(format!("node {} has negative bounds", node.id));
+            if node.role.trim().is_empty() {
+                issues.push(format!("node {} role must not be empty", node.id));
+            }
+
+            if let Some(bounds) = node.bounds {
+                if !bounds.x.is_finite()
+                    || !bounds.y.is_finite()
+                    || !bounds.width.is_finite()
+                    || !bounds.height.is_finite()
+                {
+                    issues.push(format!("node {} has non-finite bounds", node.id));
+                }
+                if bounds.width < 0.0 || bounds.height < 0.0 {
+                    issues.push(format!("node {} has negative bounds", node.id));
+                }
             }
         }
 
@@ -131,6 +155,9 @@ impl Witness {
         }
 
         for relation in &self.relations {
+            if relation.kind.trim().is_empty() {
+                issues.push("relation kind must not be empty".into());
+            }
             if !ids.contains(relation.from.as_str()) {
                 issues.push(format!(
                     "relation {} references missing source {}",
