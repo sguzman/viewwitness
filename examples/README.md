@@ -27,8 +27,9 @@ Every `.yaml` witness in this tree is parsed and structurally validated by `test
 
 - `transitions/01-inspector-resize/` — stable nodes whose bounds change between captures.
 - `transitions/02-context-menu-open/` — stable background state plus newly added transient nodes and relation.
+- `transitions/03-busy-state/` — an existing action becomes disabled while temporary progress/status state appears.
 
-Transition fixtures are intended to become executable specifications for `WitnessDiff`, not merely pairs of screenshots in textual form.
+Transition fixtures are executable specifications for `WitnessDiff`. They pressure the project to describe material state changes without resending or reinterpreting two entire GUI snapshots.
 
 ## What the corpus is already teaching us
 
@@ -38,6 +39,8 @@ Transition fixtures are intended to become executable specifications for `Witnes
 - Rectangle overlap cannot by itself prove occlusion; layering evidence is required.
 - Scroll/clipping needs coordinate-space semantics beyond bare rectangles before it can be derived robustly.
 - Pairwise geometry can become extremely noisy, so default derivation should be conservative and configurable.
+- Node identity and cross-frame continuity are related but distinct: a source identifier can be useful while still being structure-sensitive.
+- Compact transition evidence is materially more useful to agents than repeatedly comparing complete witnesses.
 
 ## Corpus rule
 
