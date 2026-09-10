@@ -1,0 +1,18 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 16
+  viewport: { width: 1200, height: 760, scale_factor: 1.0 }
+  metadata: { probe: "semantic objects inside a freeform canvas with selection handles" }
+nodes:
+  - { id: root, role: window, name: Morphos, bounds: { x: 0, y: 0, width: 1200, height: 760 }, visible: true }
+  - { id: canvas, role: canvas, parent: root, name: Scene, bounds: { x: 240, y: 44, width: 720, height: 716 }, visible: true, enabled: true, actions: [click, scroll] }
+  - { id: cube, role: shape, parent: canvas, name: Cube, bounds: { x: 430, y: 260, width: 180, height: 140 }, visible: true, selected: true, actions: [click, drag], properties: { object_kind: mesh } }
+  - { id: selection-box, role: selection_indicator, parent: canvas, name: Cube selection bounds, bounds: { x: 424, y: 254, width: 192, height: 152 }, visible: true, properties: { visual_only: true } }
+  - { id: handle-nw, role: drag_handle, parent: selection-box, name: Resize northwest, bounds: { x: 420, y: 250, width: 8, height: 8 }, visible: true, actions: [drag] }
+  - { id: handle-se, role: drag_handle, parent: selection-box, name: Resize southeast, bounds: { x: 612, y: 402, width: 8, height: 8 }, visible: true, actions: [drag] }
+  - { id: inspector, role: panel, parent: root, name: Inspector, bounds: { x: 960, y: 44, width: 240, height: 716 }, visible: true }
+  - { id: object-name, role: textbox, parent: inspector, name: Object name, bounds: { x: 980, y: 92, width: 200, height: 30 }, visible: true, enabled: true, text: Cube, actions: [type] }
+relations:
+  - { kind: controls, from: selection-box, to: cube, evidence: observed }
+  - { kind: describes, from: inspector, to: cube, evidence: observed }
