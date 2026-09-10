@@ -14,7 +14,18 @@ The `egui` crate feature exposes:
 
 `witness_from_egui_tree_update` is specifically an **egui adapter**, not a generic AccessKit incremental-update consumer. egui's frame output provides a complete tree, which lets ViewWitness reconstruct parentage directly from that frame without retaining a second accessibility tree across calls.
 
-AccessKit IDs are projected as `ak:<u64>` in v0. They are stable only to the extent the producer keeps the underlying AccessKit identity stable. ViewWitness must not claim stronger cross-frame identity than its source provides.
+AccessKit IDs are projected as `ak:<u64>` in v0. Captured egui nodes also carry explicit identity evidence:
+
+```yaml
+identity:
+  provenance: accesskit_node_id
+  stability: structure_sensitive
+  author_id: optional-application-id
+```
+
+`structure_sensitive` is intentional. The executable egui identity probe shows that an automatically identified widget can retain its AccessKit identity across ordinary state changes while insertion of a preceding widget can change that identity. ViewWitness therefore treats the source ID as useful continuity evidence without claiming that it is a permanent conceptual identity.
+
+When AccessKit exposes an application-authored `author_id`, ViewWitness preserves it as additional identity evidence. It does not silently substitute it for the observed AccessKit node ID.
 
 ## What is mapped today
 
@@ -30,10 +41,11 @@ The first adapter slice preserves:
 - selection;
 - toggled state;
 - advertised actions;
+- identity provenance/stability plus optional author ID;
 - selected AccessKit properties such as busy/read-only/required/modal/expanded;
 - semantic relations such as `labels`, `describes`, and `controls`.
 
-Capture metadata records that AccessKit was the semantic source and preserves available tree/root/focus/toolkit identifiers.
+Capture metadata records that AccessKit was the semantic source, records the egui identity policy, and preserves available tree/root/focus/toolkit identifiers.
 
 The adapter intentionally does **not** pretend AccessKit alone exhausts visual state. Paint order, exact styling, clip stacks, non-accessibility canvas primitives, and other rendered facts will require additional egui evidence or explicit application instrumentation.
 
@@ -60,14 +72,43 @@ It should remain lightweight. Capturing semantic output is acceptable on the UI 
 
 ### Live eframe observation
 
-For normal running applications, ViewWitness should prefer an **external observer** over performing heavy witness work inside the GUI update/render path.
+The optional `observer` feature provides a read-only external `InspectionObserver` that speaks the versioned `egui_inspection` protocol directly. It does not depend on MCP.
 
-Current eframe inspection support can expose a running application's AccessKit tree and input/screenshot capabilities over a local inspection connection. The intended ViewWitness architecture is therefore:
+The observer:
+
+1. connects to the inspection endpoint;
+2. validates the inspection-protocol handshake/version;
+3. requests `GetTree`;
+4. receives the complete AccessKit tree, inspection step, and pixels-per-point;
+5. converts that evidence into the canonical `Witness` outside the GUI process.
+
+The current observer derives viewport dimensions from observed root bounds. If the root does not provide usable bounds, it returns an error instead of inventing viewport geometry.
+
+A loopback mock-peer integration test exercises the actual TCP handshake and MessagePack framing in CI, so the observer transport is tested without requiring a graphical desktop session.
+
+Run the native showcase with inspection enabled in PowerShell:
+
+```powershell
+$env:EGUI_INSPECTION="1"
+cargo run --example showcase --features showcase
+```
+
+Then, from another shell in the same repository:
+
+```powershell
+cargo run --example inspection_capture --features observer
+```
+
+The example defaults to `127.0.0.1:5719` and prints one live ViewWitness YAML document.
+
+Keep inspection bound to loopback unless remote exposure is explicitly secured. The inspection protocol can expose GUI state and supports input/screenshot operations; ViewWitness's current observer uses only the read-only tree path, but the underlying endpoint should still be treated as a control surface.
+
+The architecture is now:
 
 ```text
 running egui/eframe app
         |
-        | inspection / semantic state
+        | egui_inspection GetTree
         v
 external ViewWitness observer
         |
@@ -90,10 +131,11 @@ Keeping those layers separate lets the current egui-first implementation exploit
 
 ## Next pressure points
 
-The next real egui work should answer concrete questions through the living showcase:
+The next real egui work should answer concrete questions through the living showcase and observer:
 
 1. which ordinary egui widgets produce enough AccessKit information without extra instrumentation;
 2. which visual facts require `WidgetInfo`, paint/layer information, clip rectangles, or application annotations;
-3. how stable egui/AccessKit IDs are across representative state transitions;
+3. how application-authored identity should improve diff matching without hiding heuristic reconciliation;
 4. how much semantic information disappears for custom-painted/canvas content;
-5. how a live external observer should merge semantic evidence with geometry/layer evidence without touching the render thread.
+5. how a live external observer should merge semantic evidence with geometry/layer evidence without touching the render thread;
+6. whether observed root bounds are a sufficiently reliable viewport source across native platforms and viewport configurations.
