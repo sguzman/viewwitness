@@ -8,6 +8,8 @@ mod diff;
 mod egui_capture;
 mod format;
 mod geometry;
+#[cfg(feature = "observer")]
+mod inspection_observer;
 mod model;
 
 pub use diff::{FieldChange, NodeChange, ViewportChange, WitnessDiff, diff_witnesses};
@@ -19,4 +21,6 @@ pub use format::{diff_from_yaml, diff_to_yaml, from_yaml, to_yaml};
 pub use geometry::{
     GeometryOptions, derive_geometry_relations, derive_geometry_relations_with_options,
 };
+#[cfg(feature = "observer")]
+pub use inspection_observer::InspectionObserver;
 pub use model::{Capture, Node, NodeIdentity, Rect, Relation, Viewport, Witness};
