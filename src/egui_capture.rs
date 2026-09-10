@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use egui::accesskit::{Action, NodeId, Role, Toggled, TreeUpdate};
 use serde_json::{Value, json};
 
-use crate::{Capture, Node, Rect, Relation, Viewport, Witness};
+use crate::{Capture, Node, NodeIdentity, Rect, Relation, Viewport, Witness};
 
 /// Capture context supplied by the egui integration.
 ///
@@ -75,7 +75,6 @@ pub fn witness_from_egui_tree_update(update: &TreeUpdate, context: EguiCaptureCo
             let actions = actions(node);
             let mut properties = BTreeMap::new();
 
-            insert_string(&mut properties, "author_id", node.author_id());
             insert_string(&mut properties, "description", node.description());
             insert_string(&mut properties, "placeholder", node.placeholder());
             insert_string(
@@ -144,6 +143,11 @@ pub fn witness_from_egui_tree_update(update: &TreeUpdate, context: EguiCaptureCo
                 id: node_id(*id),
                 role,
                 parent: parents.get(id).copied().map(node_id),
+                identity: Some(NodeIdentity {
+                    provenance: "accesskit_node_id".into(),
+                    stability: "structure_sensitive".into(),
+                    author_id: node.author_id().map(str::to_owned),
+                }),
                 name: node.label().map(str::to_owned).or_else(|| {
                     (node.role() == Role::Label)
                         .then(|| node.value().map(str::to_owned))
@@ -175,6 +179,10 @@ pub fn witness_from_egui_tree_update(update: &TreeUpdate, context: EguiCaptureCo
 
     let mut metadata = BTreeMap::new();
     metadata.insert("semantic_source".into(), json!("accesskit"));
+    metadata.insert(
+        "identity_policy".into(),
+        json!("egui_accesskit_structure_sensitive"),
+    );
     metadata.insert(
         "accesskit_tree_id".into(),
         json!(format!("{:?}", update.tree_id)),
