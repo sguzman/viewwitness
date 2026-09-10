@@ -119,13 +119,7 @@ pub fn derive_geometry_relations_with_options(
     relations
 }
 
-fn derive_separation(
-    a: &Node,
-    a_bounds: Rect,
-    b: &Node,
-    b_bounds: Rect,
-    out: &mut Vec<Relation>,
-) {
+fn derive_separation(a: &Node, a_bounds: Rect, b: &Node, b_bounds: Rect, out: &mut Vec<Relation>) {
     if ranges_overlap(a_bounds.y, a_bounds.bottom(), b_bounds.y, b_bounds.bottom()) {
         if a_bounds.right() <= b_bounds.x {
             out.push(relation("left_of", &a.id, &b.id));
