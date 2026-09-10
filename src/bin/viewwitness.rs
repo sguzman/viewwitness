@@ -56,9 +56,7 @@ fn inspect_command(args: Vec<String>) -> io::Result<()> {
 fn derive_command(args: Vec<String>) -> io::Result<()> {
     let (positionals, mode) = output_args(args)?;
     let [path] = positionals.as_slice() else {
-        return Err(invalid(
-            "usage: viewwitness derive <file> [--agent|--yaml]",
-        ));
+        return Err(invalid("usage: viewwitness derive <file> [--agent|--yaml]"));
     };
     let mut witness = load_witness(path)?;
     validate_witness(&witness)?;
