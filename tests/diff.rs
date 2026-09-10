@@ -1,8 +1,6 @@
 use std::fs;
 
-use viewwitness::{
-    Witness, diff_from_yaml, diff_to_yaml, diff_witnesses, from_yaml,
-};
+use viewwitness::{Witness, diff_from_yaml, diff_to_yaml, diff_witnesses, from_yaml};
 
 #[test]
 fn inspector_resize_is_field_change_not_identity_churn() {
