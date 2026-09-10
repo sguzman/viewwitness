@@ -1,0 +1,17 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 13
+  viewport: { width: 900, height: 620, scale_factor: 1.0 }
+  metadata: { probe: "nested scroll areas and partially visible descendants" }
+nodes:
+  - { id: root, role: window, name: Reader, bounds: { x: 0, y: 0, width: 900, height: 620 }, visible: true }
+  - { id: library, role: panel, parent: root, name: Library, bounds: { x: 0, y: 0, width: 260, height: 620 }, visible: true }
+  - { id: books-scroll, role: scroll_area, parent: library, name: Books, bounds: { x: 12, y: 52, width: 236, height: 540 }, visible: true, actions: [scroll], properties: { scroll_y: 420.0 } }
+  - { id: book-31, role: listitem, parent: books-scroll, name: The Time Machine, bounds: { x: 20, y: 64, width: 214, height: 34 }, visible: true, selected: true, actions: [click] }
+  - { id: reader, role: panel, parent: root, name: Reading pane, bounds: { x: 260, y: 0, width: 640, height: 620 }, visible: true }
+  - { id: chapter-scroll, role: scroll_area, parent: reader, name: Chapter, bounds: { x: 292, y: 64, width: 576, height: 516 }, visible: true, actions: [scroll], properties: { scroll_y: 1220.0 } }
+  - { id: paragraph-88, role: paragraph, parent: chapter-scroll, text: "The lower half of this paragraph remains visible.", bounds: { x: 312, y: 42, width: 520, height: 70 }, visible: true, properties: { partially_visible: true } }
+  - { id: paragraph-89, role: paragraph, parent: chapter-scroll, text: "A fully visible paragraph.", bounds: { x: 312, y: 126, width: 520, height: 56 }, visible: true }
+relations:
+  - { kind: clips, from: chapter-scroll, to: paragraph-88, evidence: derived, properties: { edge: top } }
