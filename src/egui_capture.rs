@@ -55,10 +55,7 @@ pub fn witness_from_egui_output(
 /// function relies on that stronger egui guarantee: it is not intended as a
 /// generic converter for arbitrary incremental AccessKit updates.
 #[must_use]
-pub fn witness_from_egui_tree_update(
-    update: &TreeUpdate,
-    context: EguiCaptureContext,
-) -> Witness {
+pub fn witness_from_egui_tree_update(update: &TreeUpdate, context: EguiCaptureContext) -> Witness {
     let known_ids: BTreeSet<NodeId> = update.nodes.iter().map(|(id, _)| *id).collect();
     let mut parents = BTreeMap::new();
 
@@ -178,7 +175,10 @@ pub fn witness_from_egui_tree_update(
 
     let mut metadata = BTreeMap::new();
     metadata.insert("semantic_source".into(), json!("accesskit"));
-    metadata.insert("accesskit_tree_id".into(), json!(format!("{:?}", update.tree_id)));
+    metadata.insert(
+        "accesskit_tree_id".into(),
+        json!(format!("{:?}", update.tree_id)),
+    );
     metadata.insert("accesskit_focus_id".into(), json!(node_id(update.focus)));
 
     if let Some(tree) = &update.tree {
