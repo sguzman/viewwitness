@@ -181,7 +181,8 @@ fn relation_map(relations: &[Relation]) -> BTreeMap<String, &Relation> {
     relations
         .iter()
         .map(|relation| {
-            let key = serde_json::to_string(relation).expect("Relation serialization is infallible");
+            let key =
+                serde_json::to_string(relation).expect("Relation serialization is infallible");
             (key, relation)
         })
         .collect()
