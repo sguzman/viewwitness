@@ -1,0 +1,15 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 21
+  viewport: { width: 800, height: 520, scale_factor: 1.0 }
+  metadata: { transition: "context menu opens" }
+nodes:
+  - { id: root, role: window, name: Editor, bounds: { x: 0, y: 0, width: 800, height: 520 }, visible: true }
+  - { id: canvas, role: canvas, parent: root, name: Canvas, bounds: { x: 0, y: 40, width: 800, height: 480 }, visible: true, enabled: true }
+  - { id: object-7, role: shape, parent: canvas, name: Object 7, bounds: { x: 280, y: 180, width: 140, height: 90 }, visible: true, selected: true, actions: [click, drag] }
+  - { id: object-menu, role: menu, parent: root, name: Object actions, bounds: { x: 402, y: 244, width: 170, height: 82 }, visible: true, properties: { transient: true, layer: popup } }
+  - { id: duplicate, role: menuitem, parent: object-menu, name: Duplicate, bounds: { x: 410, y: 252, width: 154, height: 28 }, visible: true, enabled: true, actions: [click] }
+  - { id: delete, role: menuitem, parent: object-menu, name: Delete, bounds: { x: 410, y: 290, width: 154, height: 28 }, visible: true, enabled: true, actions: [click] }
+relations:
+  - { kind: controls, from: object-menu, to: object-7, evidence: observed }
