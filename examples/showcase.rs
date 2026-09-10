@@ -28,7 +28,7 @@ fn main() -> eframe::Result {
 
         egui::Panel::left("showcase_controls")
             .resizable(true)
-            .default_width(230.0)
+            .default_size(230.0)
             .show(ui, |ui| {
                 ui.heading("Scenario");
                 ui.selectable_value(&mut page, ShowcasePage::Controls, "Controls");
