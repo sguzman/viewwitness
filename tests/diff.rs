@@ -30,7 +30,11 @@ fn opening_context_menu_reports_only_new_transient_structure() {
     let after = load("examples/transitions/02-context-menu-open/after.yaml");
     let diff = diff_witnesses(&before, &after);
 
-    let added_ids: Vec<&str> = diff.nodes_added.iter().map(|node| node.id.as_str()).collect();
+    let added_ids: Vec<&str> = diff
+        .nodes_added
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect();
     assert_eq!(added_ids, vec!["delete", "duplicate", "object-menu"]);
     assert!(diff.nodes_removed.is_empty());
     assert!(diff.nodes_changed.is_empty());
