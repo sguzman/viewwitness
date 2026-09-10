@@ -27,7 +27,24 @@ An addressable thing in the observed interface. A node can be semantic, visual, 
 
 This deliberately includes things that classic accessibility trees may not consider primary controls. A canvas object, selection outline, drag handle, or other agent-relevant visual affordance can deserve a node when it matters to describing or manipulating the observed interface.
 
-Nodes use stable textual IDs when possible so related witnesses can be compared.
+A node's textual `id` must be unique inside its witness. Cross-witness continuity is a separate epistemic question and must not be smuggled into the model merely because two strings happen to match.
+
+### Identity evidence
+
+Identity is evidence about whether two observations should be treated as observations of the same continuing GUI object.
+
+ViewWitness distinguishes:
+
+- **witness-local identity** — `Node.id`, which makes the node addressable within one witness;
+- **identity provenance** — the mechanism that supplied the ID, such as an AccessKit node ID;
+- **identity stability** — what kinds of changes that mechanism is known to survive;
+- **author identity evidence** — an optional application-authored identifier supplied for automation/testing.
+
+The current egui adapter classifies AccessKit-backed identity as `structure_sensitive`. Executable capture tests establish the reason: an automatically identified widget can retain identity across ordinary state changes but acquire another identity after an earlier widget is inserted into the immediate-mode construction sequence.
+
+This means equality of two egui AccessKit IDs is useful observed evidence for continuity in structurally comparable captures, but it is not a universal metaphysical claim that the nodes are eternally the same object.
+
+Application-authored IDs may provide stronger continuity evidence. v0 preserves them alongside source identity rather than using them automatically for reconciliation. If future diff logic matches nodes by author IDs, semantic signatures, geometry, or other heuristics, that matching decision must itself remain inspectable and epistemically classified.
 
 ### Role
 
@@ -86,7 +103,7 @@ This is why geometry analysis is configurable. Sibling-only derivation is a usef
 - whether z-order belongs on nodes, relations, or capture-specific properties;
 - how exact visual style should be represented;
 - whether inferred facts deserve a first-class evidence category;
-- what constitutes stable identity across immediate-mode frames;
+- what matching policy should reconcile structure-sensitive source IDs with stronger author identity or future heuristics;
 - whether transient state deserves a core field rather than an open property;
 - how clipping, transforms, and scroll-space coordinates should compose;
 - whether spatial containment should use `contains` or a more explicit geometric relation name;
