@@ -28,7 +28,7 @@ fn inspect_defaults_to_agent_text() {
     assert!(output.status.success(), "stderr: {}", stderr(&output));
     let stdout = String::from_utf8(output.stdout).expect("stdout utf8");
     assert!(stdout.starts_with("view version=\"0.1\" source=\"synthetic\""));
-    assert!(stdout.contains("node id=\"save\" role=\"button\""));
+    assert!(stdout.contains("node id=\"greet\" role=\"button\""));
 }
 
 #[test]
