@@ -1,7 +1,7 @@
 use std::{io, net::TcpStream};
 
 use egui::accesskit::TreeUpdate;
-use egui_inspection::{Request, Response, PROTOCOL_VERSION, read_message, write_message};
+use egui_inspection::{PROTOCOL_VERSION, Request, Response, read_message, write_message};
 use serde_json::json;
 
 use crate::{EguiCaptureContext, Viewport, Witness, witness_from_egui_tree_update};
@@ -70,11 +70,7 @@ impl InspectionObserver {
     }
 }
 
-fn witness_from_tree(
-    update: TreeUpdate,
-    step: u64,
-    pixels_per_point: f32,
-) -> io::Result<Witness> {
+fn witness_from_tree(update: TreeUpdate, step: u64, pixels_per_point: f32) -> io::Result<Witness> {
     let viewport = viewport_from_root(&update, pixels_per_point).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -82,10 +78,8 @@ fn witness_from_tree(
         )
     })?;
 
-    let mut witness = witness_from_egui_tree_update(
-        &update,
-        EguiCaptureContext::new(viewport).with_frame(step),
-    );
+    let mut witness =
+        witness_from_egui_tree_update(&update, EguiCaptureContext::new(viewport).with_frame(step));
     witness
         .capture
         .metadata
