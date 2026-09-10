@@ -131,7 +131,7 @@ fn headless_egui_frame_becomes_a_valid_witness() {
         },
         |ui| {
             ui.heading("ViewWitness showcase");
-            ui.button("Save");
+            let _ = ui.button("Save");
             ui.checkbox(&mut checked, "Autosave");
             ui.add(egui::Slider::new(&mut amount, 0.0..=10.0).text("Amount"));
         },
