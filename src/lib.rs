@@ -15,7 +15,7 @@ pub use diff::{FieldChange, NodeChange, ViewportChange, WitnessDiff, diff_witnes
 pub use egui_capture::{
     EguiCaptureContext, witness_from_egui_output, witness_from_egui_tree_update,
 };
-pub use format::{from_yaml, to_yaml};
+pub use format::{diff_from_yaml, diff_to_yaml, from_yaml, to_yaml};
 pub use geometry::{
     GeometryOptions, derive_geometry_relations, derive_geometry_relations_with_options,
 };
