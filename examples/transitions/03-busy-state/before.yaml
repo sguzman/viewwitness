@@ -1,0 +1,10 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 700
+  viewport: { width: 640, height: 360, scale_factor: 1.0 }
+  metadata: { scenario: "busy state before" }
+nodes:
+  - { id: root, role: window, name: Export, bounds: { x: 0, y: 0, width: 640, height: 360 }, visible: true }
+  - { id: export, role: button, parent: root, name: Export, bounds: { x: 480, y: 300, width: 120, height: 32 }, visible: true, enabled: true, actions: [click] }
+relations: []
