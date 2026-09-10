@@ -18,7 +18,7 @@ M0 is no longer a blocking phase, but corpus expansion continues throughout the 
 
 ## M1 — geometry and relation derivation
 
-**In progress.**
+**Useful first slice established; remaining work is now driven by real egui evidence.**
 
 Teach ViewWitness to derive deterministic facts from captured geometry rather than hand-authoring them in fixtures.
 
@@ -39,7 +39,7 @@ Intentional decisions from corpus pressure:
 - do not pretend bare rectangles are enough for robust clipping while scroll and clip coordinate spaces remain underspecified;
 - do not derive every possible pair by default because relation clouds become hostile to human and agent consumption.
 
-Remaining candidates before M1 is considered mature:
+Remaining candidates are intentionally coupled to M2 capture work:
 
 - viewport intersection and visible fraction;
 - explicit clip rectangles / coordinate-space model;
@@ -51,9 +51,27 @@ Derived facts must remain epistemically marked as derived.
 
 ## M2 — egui capture + living showcase
 
-Build the first real backend and an egui showcase executable designed specifically to pressure ViewWitness.
+**In progress. The first real egui semantic-capture slice now exists.**
 
-The showcase should expose many controllable states rather than look pretty. Candidate galleries:
+Established:
+
+- optional `egui` crate feature so the canonical core remains usable without toolkit dependencies;
+- `EguiCaptureContext` plus conversion from `egui::FullOutput` and egui-produced AccessKit `TreeUpdate`;
+- semantic hierarchy reconstruction from AccessKit child relationships;
+- role, name/text/value, bounds, visibility, enabled/disabled, focus, selection, toggle state, actions, and selected semantic-property mapping;
+- observed `labels`, `describes`, and `controls` relations;
+- deterministic node/relation ordering;
+- capture provenance identifying egui + AccessKit;
+- headless tests using both constructed AccessKit trees and actual egui frame output;
+- end-to-end `examples/egui_capture.rs` that emits ViewWitness YAML from a real headless egui frame;
+- CI over both the default feature set and `--all-features`;
+- an explicit architectural rule that expensive serialization/analysis/diffing/live serving must not burden the GUI thread.
+
+The first adapter deliberately preserves rather than conceals uncertainty. AccessKit transforms are detected but not yet composed into canonical bounds, and `clips_children` is observed without pretending it gives enough information for exact clipping geometry.
+
+### Living showcase
+
+Build an eframe showcase executable designed specifically to pressure ViewWitness. It should expose many controllable states rather than look pretty. Candidate galleries:
 
 - buttons, links, toggles, radio groups, sliders and text fields;
 - enabled/disabled/read-only/busy states;
@@ -71,9 +89,20 @@ The showcase should expose many controllable states rather than look pretty. Can
 
 Where possible, each showcase state should have a corresponding expected witness fixture or invariant. This turns the showcase into both a visual laboratory and a test generator.
 
-Implementation should first exploit egui/eframe and AccessKit information that already exists rather than forking or replacing their semantics unnecessarily.
+### Live observer
 
-M2 is the first point where Codex is likely to be worth introducing for bounded implementation work, especially once the capture contract and showcase acceptance cases are frozen enough to delegate mechanically.
+The preferred production/live architecture is an external ViewWitness observer consuming eframe inspection state rather than performing heavy witness work inside `App::update` or rendering paths.
+
+The observer should eventually combine:
+
+- semantic AccessKit evidence;
+- geometry and layer/clip evidence that can be captured honestly;
+- optional screenshots as supporting visual evidence;
+- deterministic ViewWitness derivation and serialization outside the GUI thread.
+
+The canonical model must remain independent of eframe inspection, AccessKit, and MCP. They are evidence/transport integrations around `Witness`.
+
+M2 is now the first point where Codex is genuinely useful for bounded implementation work. The semantic capture contract is concrete enough that large sections of the eframe showcase can be delegated mechanically while architecture and acceptance remain director-owned.
 
 ## M3 — witness diff
 
@@ -106,7 +135,7 @@ viewwitness derive <file>
 viewwitness diff <before> <after>
 ```
 
-A live egui capture command belongs here once the backend API is stable enough.
+A live egui capture command belongs here once the observer/backend API is stable enough.
 
 ## M5 — agent bridge
 
@@ -127,11 +156,12 @@ The architecture may permit these. The roadmap does not currently pursue them.
 
 Architecture, ontology, format design, example design, review, and integration remain director work.
 
-Codex becomes useful when a task has a bounded implementation contract and enough mechanical surface to benefit from a dedicated worker. Likely early examples are:
+Codex is useful when a task has a bounded implementation contract and enough mechanical surface to benefit from a dedicated worker. The first such surface has now arrived: implementing broad sections of the living eframe showcase against the established capture contract and acceptance cases.
 
-- implementing the egui capture adapter against a settled `Witness` contract;
-- building large sections of the showcase gallery;
-- filling out repetitive capture mappings once representative cases are established;
-- implementing a CLI once command behavior is defined.
+Other likely delegated tasks include:
 
-Geometry derivation has remained small enough to implement directly while its semantics are still being established. Do not introduce Codex merely because Rust code exists. Introduce it when there is enough grunt work to delegate without transferring architectural authority.
+- filling out repetitive egui/AccessKit mappings after representative cases are established;
+- implementing a live inspection client after its transport contract is specified;
+- implementing the CLI once command behavior is defined.
+
+The director should continue to implement small semantic slices directly when doing so helps establish the contract. Codex multiplies mechanical throughput; it does not inherit architectural authority.
