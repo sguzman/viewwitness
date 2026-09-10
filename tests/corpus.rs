@@ -14,16 +14,26 @@ fn entire_example_corpus_parses_and_validates() {
         let witness = from_yaml(&source)
             .unwrap_or_else(|error| panic!("failed to parse {}: {error}", path.display()));
         let issues = witness.validation_issues();
-        assert!(issues.is_empty(), "{} failed validation:\n{}", path.display(), issues.join("\n"));
+        assert!(
+            issues.is_empty(),
+            "{} failed validation:\n{}",
+            path.display(),
+            issues.join("\n")
+        );
     }
 }
 
 fn collect_yaml(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
-    for entry in fs::read_dir(dir).unwrap_or_else(|error| panic!("failed to read {}: {error}", dir.display())) {
+    for entry in fs::read_dir(dir)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", dir.display()))
+    {
         let path = entry.expect("directory entry").path();
         if path.is_dir() {
             collect_yaml(&path, out);
-        } else if path.extension().is_some_and(|extension| extension == "yaml") {
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "yaml")
+        {
             out.push(path);
         }
     }
