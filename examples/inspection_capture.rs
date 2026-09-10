@@ -8,10 +8,7 @@ fn main() -> io::Result<()> {
 
     let witness = if let Some(max_steps) = options.settle_steps {
         let (settle, witness) = observer.settle_and_capture(max_steps)?;
-        eprintln!(
-            "settle settled={} steps={}",
-            settle.settled, settle.steps
-        );
+        eprintln!("settle settled={} steps={}", settle.settled, settle.steps);
         witness
     } else {
         observer.capture()?
