@@ -1,0 +1,11 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 20
+  viewport: { width: 800, height: 520, scale_factor: 1.0 }
+  metadata: { transition: "context menu opens" }
+nodes:
+  - { id: root, role: window, name: Editor, bounds: { x: 0, y: 0, width: 800, height: 520 }, visible: true }
+  - { id: canvas, role: canvas, parent: root, name: Canvas, bounds: { x: 0, y: 40, width: 800, height: 480 }, visible: true, enabled: true }
+  - { id: object-7, role: shape, parent: canvas, name: Object 7, bounds: { x: 280, y: 180, width: 140, height: 90 }, visible: true, selected: true, actions: [click, drag] }
+relations: []
