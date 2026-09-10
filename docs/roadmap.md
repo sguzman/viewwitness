@@ -4,7 +4,7 @@ ViewWitness is a medium-sized infrastructure project: a durable semantic/data co
 
 ## M0 — executable model exploration
 
-Current phase.
+**Established and continuing as a permanent discipline.**
 
 - canonical Rust witness structs;
 - YAML projection;
@@ -14,19 +14,38 @@ Current phase.
 - transition fixtures with stable IDs;
 - CI that parses and validates every fixture.
 
-Exit criterion: the core model has survived enough examples that the first real egui capture does not immediately require redesigning every field.
+M0 is no longer a blocking phase, but corpus expansion continues throughout the project. The current model has survived conventional controls, editor layouts, popups, scrolling, modal state, clipping, dense tables, tooltips, tiny viewports, freeform canvas objects, and transition fixtures without requiring a schema reset.
 
 ## M1 — geometry and relation derivation
 
+**In progress.**
+
 Teach ViewWitness to derive deterministic facts from captured geometry rather than hand-authoring them in fixtures.
 
-Initial candidates:
+Implemented first slice:
 
-- `left_of`, `right_of`, `above`, `below`;
-- `overlaps` plus intersection rectangle/area;
-- containment;
+- positive-area `overlaps` with intersection dimensions, area, and per-node fractions;
+- `left_of` and `above` for axis-separated nodes with projection overlap;
+- left/right/top/bottom edge alignment with configurable tolerance;
+- deterministic symmetric endpoint ordering;
+- conservative sibling-only derivation by default;
+- optional cross-parent and hidden-node participation;
+- stronger finite/non-negative geometry validation.
+
+Intentional decisions from corpus pressure:
+
+- do not emit redundant inverse pairs (`left_of` does not require an additional `right_of` fact);
+- do not derive `occludes` from overlap alone because z-order/paint evidence is required;
+- do not pretend bare rectangles are enough for robust clipping while scroll and clip coordinate spaces remain underspecified;
+- do not derive every possible pair by default because relation clouds become hostile to human and agent consumption.
+
+Remaining candidates before M1 is considered mature:
+
 - viewport intersection and visible fraction;
-- basic clipping when a clip rectangle is known.
+- explicit clip rectangles / coordinate-space model;
+- clipping derivation once the above exists;
+- a carefully named geometric containment relation if corpus pressure justifies it;
+- relation pruning or analysis profiles for different consumption budgets.
 
 Derived facts must remain epistemically marked as derived.
 
@@ -54,6 +73,8 @@ Where possible, each showcase state should have a corresponding expected witness
 
 Implementation should first exploit egui/eframe and AccessKit information that already exists rather than forking or replacing their semantics unnecessarily.
 
+M2 is the first point where Codex is likely to be worth introducing for bounded implementation work, especially once the capture contract and showcase acceptance cases are frozen enough to delegate mechanically.
+
 ## M3 — witness diff
 
 Introduce a first-class `WitnessDiff` over stable node identity.
@@ -69,6 +90,11 @@ It should distinguish at least:
 
 The output should have a compact agent-oriented textual projection so normal edit/verify loops do not require resending two complete snapshots.
 
+Current executable probes:
+
+- inspector resize: stable identity, changed geometry;
+- context-menu open: stable background plus added transient nodes and semantic relation.
+
 ## M4 — operator tooling
 
 Add the smallest useful command-line surface around capture and fixtures, tentatively:
@@ -76,6 +102,7 @@ Add the smallest useful command-line surface around capture and fixtures, tentat
 ```text
 viewwitness validate <file>
 viewwitness inspect <file>
+viewwitness derive <file>
 viewwitness diff <before> <after>
 ```
 
@@ -104,7 +131,7 @@ Codex becomes useful when a task has a bounded implementation contract and enoug
 
 - implementing the egui capture adapter against a settled `Witness` contract;
 - building large sections of the showcase gallery;
-- implementing geometry derivation after semantics and tests are specified;
+- filling out repetitive capture mappings once representative cases are established;
 - implementing a CLI once command behavior is defined.
 
-Do not introduce Codex merely because Rust code exists. Introduce it when there is enough grunt work to delegate without transferring architectural authority.
+Geometry derivation has remained small enough to implement directly while its semantics are still being established. Do not introduce Codex merely because Rust code exists. Introduce it when there is enough grunt work to delegate without transferring architectural authority.
