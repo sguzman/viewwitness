@@ -12,5 +12,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Format
         run: cargo fmt --check
-      - name: Test
+      - name: Test default feature set
         run: cargo test --all-targets
+      - name: Test all features
+        run: cargo test --all-targets --all-features
