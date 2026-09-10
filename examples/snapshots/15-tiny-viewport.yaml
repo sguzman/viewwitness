@@ -1,0 +1,19 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 15
+  viewport: { width: 420, height: 260, scale_factor: 1.0 }
+  metadata: { probe: "responsive failure under a tiny viewport" }
+nodes:
+  - { id: root, role: window, name: Export, bounds: { x: 0, y: 0, width: 420, height: 260 }, visible: true }
+  - { id: form, role: panel, parent: root, name: Export settings, bounds: { x: 16, y: 16, width: 388, height: 228 }, visible: true }
+  - { id: format-label, role: label, parent: form, text: Format, bounds: { x: 28, y: 34, width: 72, height: 24 }, visible: true }
+  - { id: format, role: combobox, parent: form, name: Format, bounds: { x: 108, y: 30, width: 284, height: 32 }, visible: true, enabled: true, value: PDF, actions: [click, expand] }
+  - { id: path-label, role: label, parent: form, text: Destination, bounds: { x: 28, y: 82, width: 94, height: 24 }, visible: true }
+  - { id: path, role: textbox, parent: form, name: Destination, bounds: { x: 130, y: 78, width: 262, height: 32 }, visible: true, enabled: true, text: "C:\\Users\\guzma\\Documents\\Exports" }
+  - { id: cancel, role: button, parent: form, name: Cancel, bounds: { x: 238, y: 214, width: 88, height: 30 }, visible: true, enabled: true, actions: [click], properties: { partially_outside_parent: true } }
+  - { id: export, role: button, parent: form, name: Export, bounds: { x: 334, y: 214, width: 88, height: 30 }, visible: true, enabled: true, actions: [click], properties: { partially_outside_viewport: true, partially_outside_parent: true } }
+relations:
+  - { kind: labels, from: format-label, to: format, evidence: observed }
+  - { kind: labels, from: path-label, to: path, evidence: observed }
+  - { kind: clips, from: root, to: export, evidence: derived, properties: { edge: right } }
