@@ -1,6 +1,8 @@
 use std::fs;
 
-use viewwitness::{Witness, diff_witnesses, from_yaml};
+use viewwitness::{
+    Witness, diff_from_yaml, diff_to_yaml, diff_witnesses, from_yaml,
+};
 
 #[test]
 fn inspector_resize_is_field_change_not_identity_churn() {
@@ -43,6 +45,42 @@ fn opening_context_menu_reports_only_new_transient_structure() {
     assert_eq!(diff.relations_added[0].from, "object-menu");
     assert_eq!(diff.relations_added[0].to, "object-7");
     assert!(diff.relations_removed.is_empty());
+}
+
+#[test]
+fn busy_transition_is_compact_and_preserves_button_identity() {
+    let before = load("examples/transitions/03-busy-state/before.yaml");
+    let after = load("examples/transitions/03-busy-state/after.yaml");
+    let diff = diff_witnesses(&before, &after);
+
+    let added_ids: Vec<&str> = diff
+        .nodes_added
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect();
+    assert_eq!(added_ids, vec!["export-progress", "export-status"]);
+    assert!(diff.nodes_removed.is_empty());
+
+    let export = changed(&diff, "export");
+    assert_eq!(export.fields.len(), 2);
+    assert!(export.fields.contains_key("enabled"));
+    assert!(export.fields.contains_key("actions"));
+
+    assert_eq!(diff.relations_added.len(), 1);
+    assert_eq!(diff.relations_added[0].kind, "describes");
+    assert!(diff.relations_removed.is_empty());
+}
+
+#[test]
+fn diff_yaml_round_trip_preserves_material_change() {
+    let before = load("examples/transitions/03-busy-state/before.yaml");
+    let after = load("examples/transitions/03-busy-state/after.yaml");
+    let diff = diff_witnesses(&before, &after);
+
+    let yaml = diff_to_yaml(&diff).expect("diff serializes");
+    let reparsed = diff_from_yaml(&yaml).expect("diff reparses");
+
+    assert_eq!(reparsed, diff);
 }
 
 #[test]
