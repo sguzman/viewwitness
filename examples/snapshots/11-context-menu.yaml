@@ -1,0 +1,16 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 11
+  viewport: { width: 960, height: 640, scale_factor: 1.0 }
+  metadata: { probe: "transient context menu over canvas" }
+nodes:
+  - { id: root, role: window, name: Diagram Editor, bounds: { x: 0, y: 0, width: 960, height: 640 }, visible: true }
+  - { id: canvas, role: canvas, parent: root, name: Diagram, bounds: { x: 0, y: 40, width: 960, height: 600 }, visible: true, enabled: true }
+  - { id: node-17, role: shape, parent: canvas, name: Node 17, bounds: { x: 280, y: 180, width: 160, height: 80 }, visible: true, selected: true, actions: [click, drag] }
+  - { id: context-menu, role: menu, parent: root, name: Node actions, bounds: { x: 420, y: 230, width: 180, height: 122 }, visible: true, properties: { transient: true, layer: popup } }
+  - { id: duplicate, role: menuitem, parent: context-menu, name: Duplicate, bounds: { x: 428, y: 238, width: 164, height: 30 }, visible: true, enabled: true, actions: [click] }
+  - { id: rename, role: menuitem, parent: context-menu, name: Rename, bounds: { x: 428, y: 276, width: 164, height: 30 }, visible: true, enabled: true, focused: true, actions: [click] }
+  - { id: delete, role: menuitem, parent: context-menu, name: Delete, bounds: { x: 428, y: 314, width: 164, height: 30 }, visible: true, enabled: true, actions: [click] }
+relations:
+  - { kind: controls, from: context-menu, to: node-17, evidence: observed }
