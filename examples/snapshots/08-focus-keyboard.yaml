@@ -1,0 +1,12 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 12
+  viewport: { width: 640, height: 360, scale_factor: 1.0 }
+nodes:
+  - { id: root, role: window, name: Command Palette, bounds: { x: 0, y: 0, width: 640, height: 360 }, visible: true }
+  - { id: query, role: textbox, parent: root, name: Command search, bounds: { x: 80, y: 52, width: 480, height: 36 }, visible: true, enabled: true, focused: true, text: "open", actions: [type], properties: { shortcut: "Ctrl+P" } }
+  - { id: commands, role: list, parent: root, name: Commands, bounds: { x: 80, y: 96, width: 480, height: 210 }, visible: true }
+  - { id: open-file, role: listitem, parent: commands, name: Open file, bounds: { x: 90, y: 106, width: 460, height: 32 }, visible: true, selected: true, actions: [click, activate] }
+  - { id: open-project, role: listitem, parent: commands, name: Open project, bounds: { x: 90, y: 142, width: 460, height: 32 }, visible: true, selected: false, actions: [click, activate] }
+relations: []

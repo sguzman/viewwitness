@@ -1,0 +1,17 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 17
+  viewport: { width: 480, height: 320, scale_factor: 1.0 }
+nodes:
+  - { id: root, role: window, name: Sign in, bounds: { x: 0, y: 0, width: 480, height: 320 }, visible: true }
+  - { id: form, role: panel, parent: root, bounds: { x: 80, y: 48, width: 320, height: 220 }, visible: true }
+  - { id: email-label, role: label, parent: form, name: Email, bounds: { x: 96, y: 72, width: 64, height: 20 }, visible: true }
+  - { id: email, role: textbox, parent: form, name: Email, bounds: { x: 96, y: 96, width: 288, height: 32 }, visible: true, enabled: true, focused: true, text: "salvador@example.test", actions: [type] }
+  - { id: password-label, role: label, parent: form, name: Password, bounds: { x: 96, y: 140, width: 72, height: 20 }, visible: true }
+  - { id: password, role: textbox, parent: form, name: Password, bounds: { x: 96, y: 164, width: 288, height: 32 }, visible: true, enabled: true, focused: false, properties: { secret: true }, actions: [type] }
+  - { id: remember, role: checkbox, parent: form, name: Remember me, bounds: { x: 96, y: 210, width: 128, height: 24 }, visible: true, enabled: true, value: true, actions: [toggle] }
+  - { id: submit, role: button, parent: form, name: Sign in, bounds: { x: 296, y: 208, width: 88, height: 32 }, visible: true, enabled: true, actions: [click] }
+relations:
+  - { kind: labels, from: email-label, to: email, evidence: observed }
+  - { kind: labels, from: password-label, to: password, evidence: observed }

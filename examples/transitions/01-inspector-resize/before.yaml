@@ -1,0 +1,11 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 500
+  viewport: { width: 1200, height: 700, scale_factor: 1.0 }
+nodes:
+  - { id: root, role: window, bounds: { x: 0, y: 0, width: 1200, height: 700 }, visible: true }
+  - { id: preview, role: canvas, parent: root, name: Preview, bounds: { x: 220, y: 40, width: 720, height: 660 }, visible: true }
+  - { id: inspector, role: panel, parent: root, name: Inspector, bounds: { x: 940, y: 40, width: 260, height: 660 }, visible: true }
+relations:
+  - { kind: left_of, from: preview, to: inspector, evidence: derived }

@@ -1,0 +1,19 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 84
+  viewport: { width: 1440, height: 900, scale_factor: 1.0 }
+nodes:
+  - { id: root, role: window, name: Scene Editor, bounds: { x: 0, y: 0, width: 1440, height: 900 }, visible: true }
+  - { id: toolbar, role: toolbar, parent: root, bounds: { x: 0, y: 0, width: 1440, height: 40 }, visible: true }
+  - { id: open, role: button, parent: toolbar, name: Open, bounds: { x: 8, y: 6, width: 64, height: 28 }, visible: true, enabled: true, actions: [click] }
+  - { id: save, role: button, parent: toolbar, name: Save, bounds: { x: 78, y: 6, width: 64, height: 28 }, visible: true, enabled: true, actions: [click] }
+  - { id: tree, role: tree, parent: root, name: Objects, bounds: { x: 0, y: 40, width: 240, height: 860 }, visible: true }
+  - { id: cube, role: treeitem, parent: tree, name: Cube, bounds: { x: 12, y: 58, width: 216, height: 24 }, visible: true, selected: true, actions: [click] }
+  - { id: canvas, role: canvas, parent: root, name: Preview, bounds: { x: 240, y: 40, width: 880, height: 860 }, visible: true, properties: { background: "#181818" } }
+  - { id: inspector, role: panel, parent: root, name: Inspector, bounds: { x: 1120, y: 40, width: 320, height: 860 }, visible: true }
+  - { id: object-name, role: textbox, parent: inspector, name: Name, bounds: { x: 1140, y: 84, width: 280, height: 30 }, visible: true, enabled: true, text: Cube, actions: [type] }
+relations:
+  - { kind: left_of, from: tree, to: canvas, evidence: derived }
+  - { kind: left_of, from: canvas, to: inspector, evidence: derived }
+  - { kind: above, from: toolbar, to: canvas, evidence: derived }

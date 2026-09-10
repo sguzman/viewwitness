@@ -1,0 +1,15 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 102
+  viewport: { width: 900, height: 640, scale_factor: 1.0 }
+nodes:
+  - { id: root, role: window, name: Library, bounds: { x: 0, y: 0, width: 900, height: 640 }, visible: true }
+  - { id: background, role: panel, parent: root, bounds: { x: 0, y: 0, width: 900, height: 640 }, visible: true, enabled: false, properties: { dimmed: true } }
+  - { id: import, role: button, parent: background, name: Import, bounds: { x: 24, y: 20, width: 90, height: 32 }, visible: true, enabled: false, actions: [click] }
+  - { id: dialog, role: dialog, parent: root, name: Delete book?, bounds: { x: 250, y: 190, width: 400, height: 220 }, visible: true, properties: { modal: true, layer: foreground } }
+  - { id: dialog-text, role: label, parent: dialog, text: "This cannot be undone.", bounds: { x: 282, y: 250, width: 300, height: 24 }, visible: true }
+  - { id: cancel, role: button, parent: dialog, name: Cancel, bounds: { x: 438, y: 350, width: 82, height: 32 }, visible: true, enabled: true, focused: true, actions: [click] }
+  - { id: confirm, role: button, parent: dialog, name: Delete, bounds: { x: 532, y: 350, width: 82, height: 32 }, visible: true, enabled: true, actions: [click] }
+relations:
+  - { kind: occludes, from: dialog, to: background, evidence: derived, properties: { partial: true } }

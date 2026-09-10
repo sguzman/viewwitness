@@ -1,0 +1,13 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 66
+  viewport: { width: 500, height: 400, scale_factor: 1.0 }
+nodes:
+  - { id: root, role: window, bounds: { x: 0, y: 0, width: 500, height: 400 }, visible: true }
+  - { id: list-scroll, role: scroll_area, parent: root, name: Results, bounds: { x: 24, y: 24, width: 452, height: 352 }, visible: true, actions: [scroll], properties: { scroll_y: 184.0, content_height: 920.0 } }
+  - { id: item-7, role: listitem, parent: list-scroll, name: Result 7, bounds: { x: 36, y: 12, width: 416, height: 44 }, visible: true, selected: false }
+  - { id: item-8, role: listitem, parent: list-scroll, name: Result 8, bounds: { x: 36, y: 64, width: 416, height: 44 }, visible: true, selected: true }
+  - { id: item-14, role: listitem, parent: list-scroll, name: Result 14, bounds: { x: 36, y: 376, width: 416, height: 44 }, visible: true, selected: false, properties: { visible_fraction: 0.0 } }
+relations:
+  - { kind: clips, from: list-scroll, to: item-14, evidence: derived }

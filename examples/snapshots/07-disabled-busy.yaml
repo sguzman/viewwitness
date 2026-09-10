@@ -1,0 +1,12 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 203
+  viewport: { width: 620, height: 180, scale_factor: 1.0 }
+nodes:
+  - { id: root, role: window, name: Export, bounds: { x: 0, y: 0, width: 620, height: 180 }, visible: true }
+  - { id: export, role: button, parent: root, name: Export EPUB, bounds: { x: 24, y: 24, width: 128, height: 32 }, visible: true, enabled: false, actions: [click] }
+  - { id: progress, role: progress, parent: root, name: Export progress, bounds: { x: 24, y: 76, width: 420, height: 18 }, visible: true, value: 0.72, properties: { busy: true } }
+  - { id: status, role: status, parent: root, text: "Rendering chapter 18 of 25", bounds: { x: 24, y: 108, width: 300, height: 22 }, visible: true }
+  - { id: cancel, role: button, parent: root, name: Cancel, bounds: { x: 470, y: 70, width: 104, height: 32 }, visible: true, enabled: true, actions: [click] }
+relations: []

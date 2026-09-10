@@ -1,0 +1,17 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 404
+  viewport: { width: 1280, height: 720, scale_factor: 1.0 }
+  metadata: { purpose: "deliberately broken layout for agent diagnosis" }
+nodes:
+  - { id: root, role: window, name: Broken Editor, bounds: { x: 0, y: 0, width: 1280, height: 720 }, visible: true }
+  - { id: sidebar, role: panel, parent: root, name: Files, bounds: { x: 0, y: 40, width: 260, height: 680 }, visible: true }
+  - { id: preview, role: canvas, parent: root, name: Preview, bounds: { x: 260, y: 40, width: 1020, height: 680 }, visible: true }
+  - { id: inspector, role: panel, parent: root, name: Inspector, bounds: { x: 690, y: 56, width: 570, height: 646 }, visible: true, properties: { layer: foreground } }
+  - { id: save, role: button, parent: root, name: Save, bounds: { x: 1170, y: 8, width: 90, height: 30 }, visible: true, enabled: true, actions: [click] }
+  - { id: x-slider, role: slider, parent: inspector, name: X, bounds: { x: 720, y: 120, width: 510, height: 24 }, visible: true, enabled: true, value: 12.4, actions: [increment, decrement] }
+relations:
+  - { kind: overlaps, from: inspector, to: preview, evidence: derived, properties: { overlap_width: 570.0, overlap_height: 646.0 } }
+  - { kind: occludes, from: inspector, to: preview, evidence: derived, properties: { partial: true } }
+  - { kind: right_of, from: preview, to: sidebar, evidence: derived }

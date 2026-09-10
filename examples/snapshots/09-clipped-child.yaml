@@ -1,0 +1,11 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 9
+  viewport: { width: 520, height: 280, scale_factor: 1.0 }
+nodes:
+  - { id: root, role: window, bounds: { x: 0, y: 0, width: 520, height: 280 }, visible: true }
+  - { id: card, role: panel, parent: root, name: Preview card, bounds: { x: 60, y: 50, width: 240, height: 120 }, visible: true, properties: { clip_children: true } }
+  - { id: title, role: label, parent: card, text: "A title much wider than its card", bounds: { x: 80, y: 78, width: 310, height: 28 }, visible: true }
+relations:
+  - { kind: clips, from: card, to: title, evidence: derived, properties: { axis: horizontal, clipped_width: 90.0 } }
