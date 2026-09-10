@@ -123,19 +123,31 @@ impl Witness {
             if let Some(parent) = &node.parent
                 && !ids.contains(parent.as_str())
             {
-                issues.push(format!("node {} references missing parent {}", node.id, parent));
+                issues.push(format!(
+                    "node {} references missing parent {}",
+                    node.id, parent
+                ));
             }
         }
 
         for relation in &self.relations {
             if !ids.contains(relation.from.as_str()) {
-                issues.push(format!("relation {} references missing source {}", relation.kind, relation.from));
+                issues.push(format!(
+                    "relation {} references missing source {}",
+                    relation.kind, relation.from
+                ));
             }
             if !ids.contains(relation.to.as_str()) {
-                issues.push(format!("relation {} references missing target {}", relation.kind, relation.to));
+                issues.push(format!(
+                    "relation {} references missing target {}",
+                    relation.kind, relation.to
+                ));
             }
             if relation.evidence != "observed" && relation.evidence != "derived" {
-                issues.push(format!("relation {} has unknown evidence kind {}", relation.kind, relation.evidence));
+                issues.push(format!(
+                    "relation {} has unknown evidence kind {}",
+                    relation.kind, relation.evidence
+                ));
             }
         }
 
