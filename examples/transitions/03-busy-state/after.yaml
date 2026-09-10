@@ -1,0 +1,13 @@
+viewwitness_version: "0.1"
+capture:
+  source: synthetic
+  frame: 701
+  viewport: { width: 640, height: 360, scale_factor: 1.0 }
+  metadata: { scenario: "busy state after" }
+nodes:
+  - { id: root, role: window, name: Export, bounds: { x: 0, y: 0, width: 640, height: 360 }, visible: true }
+  - { id: export, role: button, parent: root, name: Export, bounds: { x: 480, y: 300, width: 120, height: 32 }, visible: true, enabled: false, actions: [] }
+  - { id: export-progress, role: progress, parent: root, name: Export progress, bounds: { x: 32, y: 300, width: 300, height: 18 }, visible: true, properties: { busy: true, indeterminate: true } }
+  - { id: export-status, role: status, parent: root, name: Exporting, bounds: { x: 32, y: 326, width: 180, height: 18 }, visible: true, text: "Exporting…" }
+relations:
+  - { kind: describes, from: export-status, to: export, evidence: observed }
