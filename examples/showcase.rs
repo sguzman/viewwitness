@@ -18,7 +18,7 @@ fn main() -> eframe::Result {
     let mut busy = false;
 
     eframe::run_ui_native("ViewWitness Showcase", native_options, move |ui, _frame| {
-        egui::TopBottomPanel::top("showcase_top").show(ui, |ui| {
+        egui::Panel::top("showcase_top").show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.heading("ViewWitness Showcase");
                 ui.separator();
@@ -26,7 +26,7 @@ fn main() -> eframe::Result {
             });
         });
 
-        egui::SidePanel::left("showcase_controls")
+        egui::Panel::left("showcase_controls")
             .resizable(true)
             .default_width(230.0)
             .show(ui, |ui| {
@@ -247,7 +247,7 @@ fn scrolling_page(ui: &mut egui::Ui, long_labels: bool) {
                     } else {
                         ui.label("Scrollable content");
                     }
-                    ui.button("Action");
+                    let _ = ui.button("Action");
                 });
             }
         });
