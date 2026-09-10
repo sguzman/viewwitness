@@ -17,101 +17,97 @@ fn main() -> eframe::Result {
     let mut long_labels = false;
     let mut busy = false;
 
-    eframe::run_ui_native(
-        "ViewWitness Showcase",
-        native_options,
-        move |ui, _frame| {
-            egui::TopBottomPanel::top("showcase_top").show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.heading("ViewWitness Showcase");
-                    ui.separator();
-                    ui.label("A living corpus for GUI witness capture");
-                });
+    eframe::run_ui_native("ViewWitness Showcase", native_options, move |ui, _frame| {
+        egui::TopBottomPanel::top("showcase_top").show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.heading("ViewWitness Showcase");
+                ui.separator();
+                ui.label("A living corpus for GUI witness capture");
+            });
+        });
+
+        egui::SidePanel::left("showcase_controls")
+            .resizable(true)
+            .default_width(230.0)
+            .show(ui, |ui| {
+                ui.heading("Scenario");
+                ui.selectable_value(&mut page, ShowcasePage::Controls, "Controls");
+                ui.selectable_value(&mut page, ShowcasePage::Table, "Table + selection");
+                ui.selectable_value(&mut page, ShowcasePage::Scrolling, "Scrolling");
+                ui.selectable_value(&mut page, ShowcasePage::Canvas, "Custom canvas");
+                ui.separator();
+
+                ui.heading("Pressure switches");
+                ui.checkbox(&mut show_inspector, "Floating inspector");
+                ui.checkbox(&mut pathological_overlap, "Pathological overlap");
+                ui.checkbox(&mut show_modal, "Modal-like window");
+                ui.checkbox(&mut show_tooltip, "Tooltip affordance");
+                ui.checkbox(&mut long_labels, "Long labels");
+                ui.checkbox(&mut busy, "Busy / disabled state");
+
+                ui.separator();
+                ui.small("Run with EGUI_INSPECTION=1 when compiled with the showcase feature to expose eframe's local inspection endpoint.");
             });
 
-            egui::SidePanel::left("showcase_controls")
+        egui::CentralPanel::default().show(ui, |ui| match page {
+            ShowcasePage::Controls => controls_page(
+                ui,
+                &mut name,
+                &mut enabled,
+                &mut autosave,
+                &mut amount,
+                &mut mode,
+                show_tooltip,
+                long_labels,
+                busy,
+            ),
+            ShowcasePage::Table => table_page(ui, &mut selected_row, long_labels),
+            ShowcasePage::Scrolling => scrolling_page(ui, long_labels),
+            ShowcasePage::Canvas => canvas_page(ui),
+        });
+
+        if show_inspector {
+            let position = if pathological_overlap {
+                egui::pos2(360.0, 90.0)
+            } else {
+                egui::pos2(760.0, 90.0)
+            };
+
+            egui::Window::new("Inspector")
+                .id(egui::Id::new("showcase_inspector"))
+                .fixed_pos(position)
                 .resizable(true)
-                .default_width(230.0)
-                .show(ui, |ui| {
-                    ui.heading("Scenario");
-                    ui.selectable_value(&mut page, ShowcasePage::Controls, "Controls");
-                    ui.selectable_value(&mut page, ShowcasePage::Table, "Table + selection");
-                    ui.selectable_value(&mut page, ShowcasePage::Scrolling, "Scrolling");
-                    ui.selectable_value(&mut page, ShowcasePage::Canvas, "Custom canvas");
-                    ui.separator();
-
-                    ui.heading("Pressure switches");
-                    ui.checkbox(&mut show_inspector, "Floating inspector");
-                    ui.checkbox(&mut pathological_overlap, "Pathological overlap");
-                    ui.checkbox(&mut show_modal, "Modal-like window");
-                    ui.checkbox(&mut show_tooltip, "Tooltip affordance");
-                    ui.checkbox(&mut long_labels, "Long labels");
-                    ui.checkbox(&mut busy, "Busy / disabled state");
-
-                    ui.separator();
-                    ui.small("Run with EGUI_INSPECTION=1 when compiled with the showcase feature to expose eframe's local inspection endpoint.");
+                .show(ui.ctx(), |ui| {
+                    ui.label("Observed properties");
+                    ui.horizontal(|ui| {
+                        ui.label("Name");
+                        ui.text_edit_singleline(&mut name);
+                    });
+                    ui.add(egui::Slider::new(&mut amount, 0.0..=10.0).text("X"));
+                    ui.checkbox(&mut enabled, "Enabled");
                 });
+        }
 
-            egui::CentralPanel::default().show(ui, |ui| match page {
-                ShowcasePage::Controls => controls_page(
-                    ui,
-                    &mut name,
-                    &mut enabled,
-                    &mut autosave,
-                    &mut amount,
-                    &mut mode,
-                    show_tooltip,
-                    long_labels,
-                    busy,
-                ),
-                ShowcasePage::Table => table_page(ui, &mut selected_row, long_labels),
-                ShowcasePage::Scrolling => scrolling_page(ui, long_labels),
-                ShowcasePage::Canvas => canvas_page(ui),
-            });
-
-            if show_inspector {
-                let position = if pathological_overlap {
-                    egui::pos2(360.0, 90.0)
-                } else {
-                    egui::pos2(760.0, 90.0)
-                };
-
-                egui::Window::new("Inspector")
-                    .id(egui::Id::new("showcase_inspector"))
-                    .fixed_pos(position)
-                    .resizable(true)
-                    .show(ui.ctx(), |ui| {
-                        ui.label("Observed properties");
-                        ui.horizontal(|ui| {
-                            ui.label("Name");
-                            ui.text_edit_singleline(&mut name);
-                        });
-                        ui.add(egui::Slider::new(&mut amount, 0.0..=10.0).text("X"));
-                        ui.checkbox(&mut enabled, "Enabled");
+        if show_modal {
+            egui::Window::new("Destructive confirmation")
+                .id(egui::Id::new("showcase_modal"))
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+                .show(ui.ctx(), |ui| {
+                    ui.label("Delete the selected object?");
+                    ui.horizontal(|ui| {
+                        if ui.button("Cancel").clicked() {
+                            show_modal = false;
+                        }
+                        let delete = ui.add_enabled(!busy, egui::Button::new("Delete"));
+                        if delete.clicked() {
+                            show_modal = false;
+                        }
                     });
-            }
-
-            if show_modal {
-                egui::Window::new("Destructive confirmation")
-                    .id(egui::Id::new("showcase_modal"))
-                    .collapsible(false)
-                    .resizable(false)
-                    .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-                    .show(ui.ctx(), |ui| {
-                        ui.label("Delete the selected object?");
-                        ui.horizontal(|ui| {
-                            if ui.button("Cancel").clicked() {
-                                show_modal = false;
-                            }
-                            let delete = ui.add_enabled(!busy, egui::Button::new("Delete"));
-                            if delete.clicked() {
-                                show_modal = false;
-                            }
-                        });
-                    });
-            }
-        },
-    )
+                });
+        }
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -234,7 +230,9 @@ fn table_page(ui: &mut egui::Ui, selected_row: &mut usize, long_labels: bool) {
 
 fn scrolling_page(ui: &mut egui::Ui, long_labels: bool) {
     ui.heading("Scrolling + partial visibility");
-    ui.label("This page exists to pressure clip-space, viewport, and virtualized-content assumptions.");
+    ui.label(
+        "This page exists to pressure clip-space, viewport, and virtualized-content assumptions.",
+    );
     ui.separator();
 
     egui::ScrollArea::vertical()
@@ -266,8 +264,12 @@ fn canvas_page(ui: &mut egui::Ui) {
 
     painter.rect_filled(rect, 6.0, ui.visuals().extreme_bg_color);
 
-    let first = egui::Rect::from_min_size(rect.min + egui::vec2(70.0, 70.0), egui::vec2(150.0, 100.0));
-    let second = egui::Rect::from_min_size(rect.min + egui::vec2(310.0, 170.0), egui::vec2(190.0, 110.0));
+    let first =
+        egui::Rect::from_min_size(rect.min + egui::vec2(70.0, 70.0), egui::vec2(150.0, 100.0));
+    let second = egui::Rect::from_min_size(
+        rect.min + egui::vec2(310.0, 170.0),
+        egui::vec2(190.0, 110.0),
+    );
     painter.rect_stroke(
         first,
         8.0,
