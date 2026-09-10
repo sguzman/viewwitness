@@ -174,3 +174,69 @@ fn headless_egui_frame_becomes_a_valid_witness() {
 
     output.drop_without_applying_deltas();
 }
+
+#[test]
+fn egui_auto_identity_is_stable_for_state_changes_but_not_structure_changes() {
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+
+    let first = capture_target_button_id(&ctx, false, false, 1);
+    let same_structure = capture_target_button_id(&ctx, false, true, 2);
+    let inserted_before = capture_target_button_id(&ctx, true, true, 3);
+
+    assert_eq!(
+        first, same_structure,
+        "ordinary state changes should retain the auto-generated target identity"
+    );
+    assert_ne!(
+        first, inserted_before,
+        "inserting a preceding widget demonstrates why raw egui auto identity is not a universal stable key"
+    );
+}
+
+fn capture_target_button_id(
+    ctx: &egui::Context,
+    insert_before: bool,
+    checked: bool,
+    frame: u64,
+) -> String {
+    let mut checked = checked;
+    let output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(320.0, 180.0),
+            )),
+            ..Default::default()
+        },
+        |ui| {
+            if insert_before {
+                ui.label("Inserted before target");
+            }
+            let _ = ui.button("Target");
+            ui.checkbox(&mut checked, "Flag");
+        },
+    );
+
+    let witness = witness_from_egui_output(
+        &output,
+        EguiCaptureContext::new(Viewport {
+            width: 320.0,
+            height: 180.0,
+            scale_factor: 1.0,
+        })
+        .with_frame(frame),
+    )
+    .expect("AccessKit was enabled");
+
+    let id = witness
+        .nodes
+        .iter()
+        .find(|node| node.name.as_deref() == Some("Target"))
+        .expect("target button appears in witness")
+        .id
+        .clone();
+
+    output.drop_without_applying_deltas();
+    id
+}
