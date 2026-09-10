@@ -19,4 +19,4 @@ pub use format::{diff_from_yaml, diff_to_yaml, from_yaml, to_yaml};
 pub use geometry::{
     GeometryOptions, derive_geometry_relations, derive_geometry_relations_with_options,
 };
-pub use model::{Capture, Node, Rect, Relation, Viewport, Witness};
+pub use model::{Capture, Node, NodeIdentity, Rect, Relation, Viewport, Witness};
