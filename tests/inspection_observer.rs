@@ -18,42 +18,12 @@ fn observer_captures_a_live_protocol_tree() {
         let request: Request = read_message(&mut stream).expect("read request");
         assert!(matches!(request, Request::GetTree));
 
-        let root_id = NodeId(1);
-        let button_id = NodeId(2);
-
-        let mut root = Node::new(Role::Window);
-        root.set_label("Mock app");
-        root.set_children(vec![button_id]);
-        root.set_bounds(egui::accesskit::Rect {
-            x0: 0.0,
-            y0: 0.0,
-            x1: 800.0,
-            y1: 600.0,
-        });
-
-        let mut button = Node::new(Role::Button);
-        button.set_label("Apply");
-        button.set_author_id("apply");
-        button.set_bounds(egui::accesskit::Rect {
-            x0: 20.0,
-            y0: 30.0,
-            x1: 100.0,
-            y1: 60.0,
-        });
-
-        let update = TreeUpdate {
-            nodes: vec![(root_id, root), (button_id, button)],
-            tree: Some(Tree::new(root_id)),
-            tree_id: TreeId::ROOT,
-            focus: root_id,
-        };
-
         write_message(
             &mut stream,
             &Response::Tree {
                 step: 41,
                 pixels_per_point: 1.5,
-                accesskit: Some(update),
+                accesskit: Some(mock_tree()),
             },
         )
         .expect("write tree response");
@@ -87,4 +57,85 @@ fn observer_captures_a_live_protocol_tree() {
     assert_eq!(identity.author_id.as_deref(), Some("apply"));
 
     server.join().expect("mock peer exits cleanly");
+}
+
+#[test]
+fn settle_and_capture_preserves_non_idle_evidence_and_still_captures() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock inspection peer");
+    let addr = listener.local_addr().expect("listener address");
+
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept observer");
+        egui_inspection::protocol::write_handshake(&mut stream).expect("write handshake");
+
+        let request: Request = read_message(&mut stream).expect("read settle request");
+        assert!(matches!(request, Request::Settle { max_steps: 5 }));
+        write_message(
+            &mut stream,
+            &Response::Settled {
+                settled: false,
+                steps: 5,
+            },
+        )
+        .expect("write settle response");
+
+        let request: Request = read_message(&mut stream).expect("read tree request");
+        assert!(matches!(request, Request::GetTree));
+        write_message(
+            &mut stream,
+            &Response::Tree {
+                step: 46,
+                pixels_per_point: 1.5,
+                accesskit: Some(mock_tree()),
+            },
+        )
+        .expect("write tree response");
+    });
+
+    let mut observer = InspectionObserver::connect(&addr.to_string()).expect("connect observer");
+    let (settle, witness) = observer
+        .settle_and_capture(5)
+        .expect("settle and capture succeeds");
+
+    assert!(!settle.settled);
+    assert_eq!(settle.steps, 5);
+    assert_eq!(
+        witness.expect("tree exists").capture.frame,
+        Some(46),
+        "a non-idle settle result must not discard observable GUI state"
+    );
+
+    server.join().expect("mock peer exits cleanly");
+}
+
+fn mock_tree() -> TreeUpdate {
+    let root_id = NodeId(1);
+    let button_id = NodeId(2);
+
+    let mut root = Node::new(Role::Window);
+    root.set_label("Mock app");
+    root.set_children(vec![button_id]);
+    root.set_bounds(egui::accesskit::Rect {
+        x0: 0.0,
+        y0: 0.0,
+        x1: 800.0,
+        y1: 600.0,
+    });
+
+    let mut button = Node::new(Role::Button);
+    button.set_label("Apply");
+    button.set_author_id("apply");
+    button.set_bounds(egui::accesskit::Rect {
+        x0: 20.0,
+        y0: 30.0,
+        x1: 100.0,
+        y1: 60.0,
+    });
+
+    TreeUpdate {
+        nodes: vec![(root_id, root), (button_id, button)],
+        tree: Some(Tree::new(root_id)),
+        tree_id: TreeId::ROOT,
+        focus: root_id,
+    }
 }
