@@ -60,7 +60,11 @@ fn keyed_binding_material_change_remains_material() {
 
     let diff = diff_correlated_captures(&before, &after);
     assert_eq!(diff.authored.objects_changed.len(), 1);
-    assert!(diff.authored.objects_changed[0].fields.contains_key("bindings"));
+    assert!(
+        diff.authored.objects_changed[0]
+            .fields
+            .contains_key("bindings")
+    );
     assert!(diff.authored.execution_handle_churn.is_empty());
     assert!(!diff.is_materially_empty());
 }
@@ -129,12 +133,7 @@ fn object(bindings: Vec<EguiAuthoredPaintBinding>) -> EguiAuthoredPaintObject {
     }
 }
 
-fn binding(
-    id: &str,
-    kind: EguiPaintKind,
-    shape_index: usize,
-    x: f32,
-) -> EguiAuthoredPaintBinding {
+fn binding(id: &str, kind: EguiPaintKind, shape_index: usize, x: f32) -> EguiAuthoredPaintBinding {
     let mut binding = unkeyed(kind, shape_index, x);
     binding.authored_binding_id = Some(id.into());
     binding
