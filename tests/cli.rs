@@ -143,6 +143,10 @@ fn capture_exact_defaults_to_correlated_agent_text() {
         )
     );
     assert!(stdout.contains("node id=\"ak:1\" role=\"button\" name=\"Apply\""));
+    assert!(stdout.contains(
+        "authored-object id=\"canvas:node\" role=\"diagram_node\" name=\"Canvas node\""
+    ));
+    assert!(stdout.contains("binding_evidence=\"observed\""));
     assert!(stdout.contains("paint order=1 kind=\"rect\" bounds=[10,10,20,10]"));
     assert!(stdout.contains("correlation=same_full_output"));
     server.join().expect("mock exact peer exits cleanly");
@@ -165,6 +169,9 @@ fn capture_exact_yaml_preserves_full_correlated_envelope() {
     assert!(stdout.contains("viewport_rect:"));
     assert!(stdout.contains("witness:"));
     assert!(stdout.contains("paint:"));
+    assert!(stdout.contains("authored_objects:"));
+    assert!(stdout.contains("id: canvas:node"));
+    assert!(stdout.contains("binding_evidence: observed"));
     assert!(stdout.contains("kind: rect"));
     server.join().expect("mock exact peer exits cleanly");
 }
@@ -209,7 +216,8 @@ fn spawn_exact_capture_peer(
 #[cfg(feature = "egui")]
 fn sample_correlated_capture() -> viewwitness::EguiCorrelatedCapture {
     use viewwitness::{
-        EguiCorrelatedCapture, EguiPaintKind, EguiPaintObservation, Rect, from_yaml,
+        EguiAuthoredPaintObject, EguiCorrelatedCapture, EguiLayerOrder, EguiPaintKind,
+        EguiPaintObservation, Rect, from_yaml,
     };
 
     let witness = from_yaml(
@@ -256,6 +264,25 @@ relations: []
                 width: 20.0,
                 height: 10.0,
             },
+            clip_rect: None,
+        }],
+        authored_objects: vec![EguiAuthoredPaintObject {
+            id: "canvas:node".into(),
+            role: "diagram_node".into(),
+            name: Some("Canvas node".into()),
+            semantic_evidence: "intended".into(),
+            binding_evidence: "observed".into(),
+            layer_order: EguiLayerOrder::Background,
+            layer_id: 42,
+            shape_index: 3,
+            verified_at_end_pass: true,
+            kind: Some(EguiPaintKind::Rect),
+            bounds: Some(Rect {
+                x: 10.0,
+                y: 10.0,
+                width: 20.0,
+                height: 10.0,
+            }),
             clip_rect: None,
         }],
     }
