@@ -42,7 +42,10 @@ fn external_observer_receives_exact_correlated_capture() {
         thread::sleep(Duration::from_millis(1));
     }
 
-    assert!(client.is_finished(), "network capture must complete while egui is serviced");
+    assert!(
+        client.is_finished(),
+        "network capture must complete while egui is serviced"
+    );
     let capture = client
         .join()
         .expect("capture client thread does not panic")
