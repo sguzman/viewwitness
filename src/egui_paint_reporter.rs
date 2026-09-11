@@ -6,10 +6,11 @@ use crate::{EguiPaintObservation, paint_observations_from_egui_output};
 ///
 /// This remains egui-specific integration data rather than canonical
 /// `Witness` state. `pass_nr` is egui's cumulative pass number for the active
-/// viewport; `viewport_id` disambiguates independent viewport pass streams.
+/// viewport; `viewport_id` is the raw egui viewport identity and disambiguates
+/// independent viewport pass streams without carrying framework wrapper state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EguiPaintFrame {
-    pub viewport_id: egui::ViewportId,
+    pub viewport_id: u64,
     pub pass_nr: u64,
     pub pixels_per_point: f32,
     /// Number of reporter frames dropped since the previous successfully
@@ -62,7 +63,7 @@ impl egui::Plugin for EguiPaintReporter {
         }
 
         let frame = EguiPaintFrame {
-            viewport_id: ctx.viewport_id(),
+            viewport_id: ctx.viewport_id().0.value(),
             pass_nr: ctx.cumulative_pass_nr(),
             pixels_per_point: output.pixels_per_point,
             dropped_before: self.dropped_since_delivery,
