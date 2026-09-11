@@ -11,6 +11,8 @@ mod egui_capture;
 mod egui_paint;
 #[cfg(feature = "egui")]
 mod egui_paint_reporter;
+#[cfg(feature = "egui")]
+mod egui_paint_transport;
 mod format;
 mod geometry;
 #[cfg(feature = "observer")]
@@ -27,6 +29,11 @@ pub use egui_capture::{
 pub use egui_paint::{EguiPaintKind, EguiPaintObservation, paint_observations_from_egui_output};
 #[cfg(feature = "egui")]
 pub use egui_paint_reporter::{EguiPaintFrame, EguiPaintReporter};
+#[cfg(feature = "egui")]
+pub use egui_paint_transport::{
+    DEFAULT_EGUI_PAINT_ADDR, EGUI_PAINT_PROTOCOL_MAGIC, EGUI_PAINT_PROTOCOL_VERSION,
+    EguiPaintObserver, MAX_EGUI_PAINT_MESSAGE_BYTES, run_egui_paint_server,
+};
 pub use format::{diff_from_yaml, diff_to_yaml, from_yaml, to_yaml};
 pub use geometry::{
     GeometryOptions, derive_geometry_relations, derive_geometry_relations_with_options,
