@@ -2,11 +2,12 @@
 
 use std::sync::mpsc::TryRecvError;
 
-use viewwitness::{EguiPaintReporter, Rect};
+use viewwitness::{EguiPaintKind, EguiPaintReporter, Rect};
 
 #[test]
 fn bounded_reporter_drops_instead_of_backpressuring_and_reports_the_gap() {
     let ctx = egui::Context::default();
+    let expected_viewport_id = ctx.viewport_id().0.value();
     let (reporter, receiver) = EguiPaintReporter::channel(1);
     ctx.add_plugin(reporter);
 
@@ -16,9 +17,10 @@ fn bounded_reporter_drops_instead_of_backpressuring_and_reports_the_gap() {
     let first = receiver.try_recv().expect("first paint frame delivered");
     assert_eq!(first.dropped_before, 0);
     assert_eq!(first.pixels_per_point, 1.0);
+    assert_eq!(first.viewport_id, expected_viewport_id);
     assert!(
         first.observations.iter().any(|observation| {
-            observation.kind == "rect"
+            observation.kind == EguiPaintKind::Rect
                 && observation.bounds
                     == Rect {
                         x: 10.0,
@@ -44,7 +46,7 @@ fn bounded_reporter_drops_instead_of_backpressuring_and_reports_the_gap() {
     assert_eq!(after_gap.viewport_id, first.viewport_id);
     assert!(
         after_gap.observations.iter().any(|observation| {
-            observation.kind == "rect"
+            observation.kind == EguiPaintKind::Rect
                 && observation.bounds
                     == Rect {
                         x: 30.0,
