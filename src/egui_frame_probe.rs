@@ -9,6 +9,7 @@ use std::{
 };
 
 use egui::accesskit::TreeUpdate;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
@@ -42,7 +43,7 @@ pub struct EguiFrameEvidence {
 /// deliberately remains provisional egui evidence. `witness.capture.frame`
 /// uses `pass_nr`, and metadata names that clock explicitly so consumers do not
 /// confuse it with `egui_inspection`'s unrelated step counter.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EguiCorrelatedCapture {
     pub request_id: u64,
     pub viewport_id: u64,
