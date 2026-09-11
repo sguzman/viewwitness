@@ -1,15 +1,23 @@
-use std::{net::TcpListener, thread, time::Duration};
+use std::{
+    net::TcpListener,
+    sync::{Arc, OnceLock},
+    thread,
+    time::Duration,
+};
 
 use eframe::egui;
 use viewwitness::{
-    DEFAULT_EGUI_CAPTURE_ADDR, DEFAULT_EGUI_PAINT_ADDR, EguiFrameProbe, EguiPaintReporter,
-    run_egui_capture_server, run_egui_paint_server,
+    DEFAULT_EGUI_CAPTURE_ADDR, DEFAULT_EGUI_PAINT_ADDR, EguiFrameProbe, EguiPaintAnnotator,
+    EguiPaintObjectDescriptor, EguiPaintReporter, run_egui_capture_server, run_egui_paint_server,
 };
 
 fn main() -> eframe::Result {
     let native_options = eframe::NativeOptions::default();
     let paint_listener = bind_viewwitness_listener(DEFAULT_EGUI_PAINT_ADDR, "continuous paint");
     let capture_listener = bind_viewwitness_listener(DEFAULT_EGUI_CAPTURE_ADDR, "exact capture");
+    let annotator_slot = Arc::new(OnceLock::new());
+    let canvas_annotator = Arc::clone(&annotator_slot);
+    let install_annotator = Arc::clone(&annotator_slot);
 
     let mut page = ShowcasePage::Controls;
     let mut name = String::from("Cube");
@@ -71,7 +79,7 @@ fn main() -> eframe::Result {
             ),
             ShowcasePage::Table => table_page(ui, &mut selected_row, long_labels),
             ShowcasePage::Scrolling => scrolling_page(ui, long_labels),
-            ShowcasePage::Canvas => canvas_page(ui),
+            ShowcasePage::Canvas => canvas_page(ui, canvas_annotator.get()),
         });
 
         if show_inspector {
@@ -121,7 +129,11 @@ fn main() -> eframe::Result {
         "ViewWitness Showcase",
         native_options,
         Box::new(move |cc| {
-            install_viewwitness_services(&cc.egui_ctx, paint_listener, capture_listener);
+            if let Some(annotator) =
+                install_viewwitness_services(&cc.egui_ctx, paint_listener, capture_listener)
+            {
+                let _ = install_annotator.set(annotator);
+            }
             Ok(Box::new(ShowcaseClosure { ui_fun }))
         }),
     )
@@ -157,7 +169,7 @@ fn install_viewwitness_services(
     ctx: &egui::Context,
     paint_listener: Option<TcpListener>,
     capture_listener: Option<TcpListener>,
-) {
+) -> Option<EguiPaintAnnotator> {
     if let Some(listener) = paint_listener {
         let (reporter, receiver) = EguiPaintReporter::channel(2);
         ctx.add_plugin(reporter);
@@ -175,6 +187,7 @@ fn install_viewwitness_services(
 
     if let Some(listener) = capture_listener {
         let probe = EguiFrameProbe::install(ctx, 1);
+        let annotator = probe.annotator();
         if let Err(error) = thread::Builder::new()
             .name("viewwitness-capture-server".into())
             .spawn(move || {
@@ -186,7 +199,10 @@ fn install_viewwitness_services(
         {
             eprintln!("ViewWitness showcase could not start exact capture worker: {error}");
         }
+        return Some(annotator);
     }
+
+    None
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -332,9 +348,11 @@ fn scrolling_page(ui: &mut egui::Ui, long_labels: bool) {
         });
 }
 
-fn canvas_page(ui: &mut egui::Ui) {
-    ui.heading("Custom-painted canvas — negative control");
-    ui.label("The visible shapes below intentionally test what AccessKit does NOT know without extra semantic instrumentation.");
+fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
+    use egui::epaint::{CircleShape, RectShape};
+
+    ui.heading("Custom-painted canvas — explicit identity pressure test");
+    ui.label("The rectangle and circle below are ordinary egui paint, but ViewWitness explicitly binds application-authored object identity to their real paint handles during exact capture.");
     ui.separator();
 
     let desired_size = egui::vec2(ui.available_width().min(620.0), 360.0);
@@ -349,17 +367,38 @@ fn canvas_page(ui: &mut egui::Ui) {
         rect.min + egui::vec2(310.0, 170.0),
         egui::vec2(190.0, 110.0),
     );
-    painter.rect_stroke(
+
+    let first_shape = RectShape::stroke(
         first,
         8.0,
         egui::Stroke::new(2.0, ui.visuals().widgets.active.fg_stroke.color),
         egui::StrokeKind::Middle,
     );
-    painter.circle_stroke(
-        second.center(),
-        52.0,
-        egui::Stroke::new(2.0, ui.visuals().widgets.hovered.fg_stroke.color),
-    );
+    let second_shape = CircleShape {
+        center: second.center(),
+        radius: 52.0,
+        fill: egui::Color32::TRANSPARENT,
+        stroke: egui::Stroke::new(2.0, ui.visuals().widgets.hovered.fg_stroke.color),
+    };
+
+    if let Some(annotator) = annotator {
+        annotator.add_shape(
+            &painter,
+            EguiPaintObjectDescriptor::new("showcase:painted-rectangle", "diagram_node")
+                .with_name("Painted rectangle"),
+            first_shape,
+        );
+        annotator.add_shape(
+            &painter,
+            EguiPaintObjectDescriptor::new("showcase:painted-circle", "diagram_node")
+                .with_name("Painted circle"),
+            second_shape,
+        );
+    } else {
+        painter.add(first_shape);
+        painter.add(second_shape);
+    }
+
     painter.text(
         first.center(),
         egui::Align2::CENTER_CENTER,
@@ -379,5 +418,5 @@ fn canvas_page(ui: &mut egui::Ui) {
         ui.ctx().request_repaint();
     }
 
-    ui.small("Expected result: the canvas interaction surface may be visible semantically, but the two painted objects require additional ViewWitness instrumentation if agents are to reason about them as objects.");
+    ui.small("Exact capture should report two authored objects with intended semantics + observed verified paint handles. The background and labels remain generic paint, proving ViewWitness does not infer object identity for unannotated submissions.");
 }
