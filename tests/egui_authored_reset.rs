@@ -16,15 +16,13 @@ fn reset_slot_and_missing_slot_remain_distinct_authored_binding_states() {
         .request_capture()
         .expect("request reset/missing-handle capture");
 
-    let bounds =
-        egui::Rect::from_min_size(egui::pos2(20.0, 20.0), egui::vec2(50.0, 30.0));
+    let bounds = egui::Rect::from_min_size(egui::pos2(20.0, 20.0), egui::vec2(50.0, 30.0));
 
     let output = ctx.run_ui(test_input(), |ui| {
         let painter = ui.painter().clone();
 
         annotator.paint_object(
-            EguiPaintObjectDescriptor::new("canvas:reset", "diagram_node")
-                .with_name("Reset node"),
+            EguiPaintObjectDescriptor::new("canvas:reset", "diagram_node").with_name("Reset node"),
             |object| {
                 let live = object.add_shape(
                     &painter,
