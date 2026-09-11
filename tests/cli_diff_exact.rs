@@ -111,6 +111,7 @@ relations: []
             name: Some("Node".into()),
             semantic_evidence: "intended".into(),
             bindings: vec![EguiAuthoredPaintBinding {
+                authored_binding_id: None,
                 binding_evidence: "observed".into(),
                 layer_order: EguiLayerOrder::Background,
                 layer_id: 42,
