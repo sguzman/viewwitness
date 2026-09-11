@@ -2,7 +2,10 @@ use std::fmt::Write as _;
 
 use serde::Serialize;
 
-use crate::{EguiCorrelatedCapture, Rect, to_agent_text};
+use crate::{
+    EguiAuthoredPaintObject, EguiCorrelatedCapture, EguiCorrelatedDiff, Rect, diff_to_agent_text,
+    to_agent_text,
+};
 
 /// Project an exact correlated egui capture into deterministic agent-oriented
 /// text without collapsing semantic nodes, authored custom-paint objects, and
@@ -141,6 +144,86 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
     }
 
     output
+}
+
+/// Deterministic agent projection for a correlated egui diff.
+///
+/// Generic anonymous paint is intentionally absent because the correlated diff
+/// does not claim durable identity for those submissions. Layer-local ShapeIdx
+/// churn is emitted separately and labeled non-material.
+#[must_use]
+pub fn correlated_diff_to_agent_text(diff: &EguiCorrelatedDiff) -> String {
+    let mut output = String::new();
+    writeln!(
+        output,
+        "egui-diff before_request={} after_request={} before_pass={} after_pass={} materially_empty={}",
+        diff.before_request_id,
+        diff.after_request_id,
+        diff.before_pass_nr,
+        diff.after_pass_nr,
+        diff.is_materially_empty(),
+    )
+    .expect("writing to String cannot fail");
+    output.push_str(&diff_to_agent_text(&diff.semantic));
+
+    for object in &diff.authored.objects_added {
+        write_authored_delta(&mut output, "+authored-object", object);
+    }
+    for object in &diff.authored.objects_removed {
+        write_authored_delta(&mut output, "-authored-object", object);
+    }
+    for change in &diff.authored.objects_changed {
+        for (field, value) in &change.fields {
+            writeln!(
+                output,
+                "authored-change id={} field={} before={} after={}",
+                json(&change.id),
+                json(field),
+                json(&value.before),
+                json(&value.after),
+            )
+            .expect("writing to String cannot fail");
+        }
+    }
+    for ambiguity in &diff.authored.ambiguous_ids {
+        writeln!(
+            output,
+            "authored-ambiguity id={} before_count={} after_count={} matching=refused",
+            json(&ambiguity.id),
+            ambiguity.before_count,
+            ambiguity.after_count,
+        )
+        .expect("writing to String cannot fail");
+    }
+    for churn in &diff.authored.execution_handle_churn {
+        writeln!(
+            output,
+            "authored-handle-churn id={} binding_ordinal={} before_shape_index={} after_shape_index={} material=false continuity=frame_local_structure_sensitive",
+            json(&churn.id),
+            churn.binding_ordinal,
+            churn.before_shape_index,
+            churn.after_shape_index,
+        )
+        .expect("writing to String cannot fail");
+    }
+
+    output
+}
+
+fn write_authored_delta(output: &mut String, prefix: &str, object: &EguiAuthoredPaintObject) {
+    write!(
+        output,
+        "{prefix} id={} role={} semantic_evidence={} binding_count={}",
+        json(&object.id),
+        json(&object.role),
+        json(&object.semantic_evidence),
+        object.bindings.len(),
+    )
+    .expect("writing to String cannot fail");
+    if let Some(name) = &object.name {
+        write!(output, " name={}", json(name)).expect("writing to String cannot fail");
+    }
+    output.push('\n');
 }
 
 fn rect(rect: Rect) -> String {
