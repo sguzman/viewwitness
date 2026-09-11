@@ -377,8 +377,9 @@ fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
             EguiPaintObjectDescriptor::new("showcase:painted-rectangle", "diagram_node")
                 .with_name("Painted rectangle"),
             |object| {
-                object.add_shape(
+                object.add_shape_with_id(
                     &painter,
+                    "outline",
                     RectShape::stroke(
                         first,
                         8.0,
@@ -386,8 +387,9 @@ fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
                         egui::StrokeKind::Middle,
                     ),
                 );
-                object.add_shape(
+                object.add_shape_with_id(
                     &painter,
+                    "handle",
                     RectShape::filled(
                         rectangle_handle,
                         2.0,
@@ -400,8 +402,9 @@ fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
             EguiPaintObjectDescriptor::new("showcase:painted-circle", "diagram_node")
                 .with_name("Painted circle"),
             |object| {
-                object.add_shape(
+                object.add_shape_with_id(
                     &painter,
+                    "ring",
                     CircleShape {
                         center: second.center(),
                         radius: 52.0,
@@ -412,8 +415,9 @@ fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
                         ),
                     },
                 );
-                object.add_shape(
+                object.add_shape_with_id(
                     &painter,
+                    "center",
                     CircleShape {
                         center: second.center(),
                         radius: 4.0,
@@ -468,5 +472,5 @@ fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
         ui.ctx().request_repaint();
     }
 
-    ui.small("Expected exact capture: two authored logical objects with four verified paint bindings. The canvas background and text labels remain generic renderer evidence, so ViewWitness still does not infer identity for unannotated submissions.");
+    ui.small("Expected exact capture: two authored logical objects with four verified, keyed paint bindings (`outline`, `handle`, `ring`, `center`). The canvas background and text labels remain generic renderer evidence, so ViewWitness still does not infer identity for unannotated submissions.");
 }
