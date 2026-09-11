@@ -22,6 +22,7 @@ fn run() -> io::Result<()> {
         "inspect" => inspect_command(args.collect()),
         "derive" => derive_command(args.collect()),
         "diff" => diff_command(args.collect()),
+        "diff-exact" => diff_exact_command(args.collect()),
         "capture" => capture_command(args.collect()),
         "capture-exact" => capture_exact_command(args.collect()),
         "screenshot" => screenshot_command(args.collect()),
@@ -85,6 +86,44 @@ fn diff_command(args: Vec<String>) -> io::Result<()> {
         OutputMode::Yaml => print!("{}", map_yaml(diff_to_yaml(&diff))?),
     }
     Ok(())
+}
+
+#[cfg(feature = "egui")]
+fn diff_exact_command(args: Vec<String>) -> io::Result<()> {
+    use viewwitness::{correlated_diff_to_agent_text, diff_correlated_captures};
+
+    let (positionals, mode) = output_args(args)?;
+    let [before_path, after_path] = positionals.as_slice() else {
+        return Err(invalid(
+            "usage: viewwitness diff-exact <before> <after> [--agent|--yaml]",
+        ));
+    };
+
+    let before = load_correlated_capture(before_path)?;
+    let after = load_correlated_capture(after_path)?;
+    validate_witness(&before.witness)?;
+    validate_witness(&after.witness)?;
+    let diff = diff_correlated_captures(&before, &after);
+
+    match mode {
+        OutputMode::Agent => print!("{}", correlated_diff_to_agent_text(&diff)),
+        OutputMode::Yaml => {
+            let yaml = serde_yaml_ng::to_string(&diff).map_err(|error| {
+                io::Error::other(format!(
+                    "failed to serialize correlated diff YAML: {error}"
+                ))
+            })?;
+            print!("{yaml}");
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "egui"))]
+fn diff_exact_command(_args: Vec<String>) -> io::Result<()> {
+    Err(invalid(
+        "exact correlated diff requires the `egui` feature; rebuild with `--features egui`",
+    ))
 }
 
 #[cfg(feature = "observer")]
@@ -212,10 +251,11 @@ fn screenshot_command(args: Vec<String>) -> io::Result<()> {
             }
             addr = value.to_owned();
         } else if let Some(value) = arg.strip_prefix("--scale=") {
-            scale =
-                Some(value.parse::<f32>().map_err(|error| {
-                    invalid(format!("invalid --scale value {value:?}: {error}"))
-                })?);
+            scale = Some(
+                value
+                    .parse::<f32>()
+                    .map_err(|error| invalid(format!("invalid --scale value {value:?}: {error}")))?,
+            );
         } else if arg.starts_with('-') {
             return Err(invalid(format!("unknown screenshot option {arg:?}")));
         } else if output_path.replace(arg).is_some() {
@@ -281,6 +321,14 @@ fn load_witness(path: &str) -> io::Result<Witness> {
     from_yaml(&source).map_err(|error| invalid(format!("failed to parse {path}: {error}")))
 }
 
+#[cfg(feature = "egui")]
+fn load_correlated_capture(path: &str) -> io::Result<viewwitness::EguiCorrelatedCapture> {
+    let source = fs::read_to_string(path)
+        .map_err(|error| io::Error::new(error.kind(), format!("failed to read {path}: {error}")))?;
+    serde_yaml_ng::from_str(&source)
+        .map_err(|error| invalid(format!("failed to parse correlated capture {path}: {error}")))
+}
+
 fn validate_witness(witness: &Witness) -> io::Result<()> {
     let issues = witness.validation_issues();
     if issues.is_empty() {
@@ -333,12 +381,14 @@ fn print_usage() {
            viewwitness inspect <file> [--agent|--yaml]\n\
            viewwitness derive <file> [--agent|--yaml]\n\
            viewwitness diff <before> <after> [--agent|--yaml]\n\
+           viewwitness diff-exact <before> <after> [--agent|--yaml]\n\
            viewwitness capture [address] [--agent|--yaml] [--derive] [--settle=N]\n\
            viewwitness capture-exact [address] [--agent|--yaml] [--derive]\n\
            viewwitness screenshot <output.png> [--address=HOST:PORT] [--scale=N]\n\
          \n\
-         Agent text is the default output for inspect, derive, diff, capture, and capture-exact.\n\
+         Agent text is the default output for inspect, derive, diff, diff-exact, capture, and capture-exact.\n\
          `capture` reads semantic state through egui_inspection; `capture-exact` reads ViewWitness's\n\
-         same-pass semantic + viewport + paint evidence. Screenshots remain separate raster evidence."
+         same-pass semantic + viewport + paint evidence. `diff-exact` compares two saved full\n\
+         correlated capture envelopes. Screenshots remain separate raster evidence."
     );
 }
