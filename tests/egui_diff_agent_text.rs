@@ -1,8 +1,8 @@
 #![cfg(feature = "egui")]
 
 use viewwitness::{
-    EguiAuthoredDiff, EguiAuthoredExecutionHandleChange, EguiAuthoredIdAmbiguity,
-    EguiCorrelatedDiff, WitnessDiff, correlated_diff_to_agent_text,
+    EguiAuthoredBindingIdAmbiguity, EguiAuthoredDiff, EguiAuthoredExecutionHandleChange,
+    EguiAuthoredIdAmbiguity, EguiCorrelatedDiff, WitnessDiff, correlated_diff_to_agent_text,
 };
 
 #[test]
@@ -22,8 +22,15 @@ fn correlated_diff_text_separates_ambiguity_and_non_material_handle_churn() {
                 before_count: 2,
                 after_count: 1,
             }],
+            binding_ambiguities: vec![EguiAuthoredBindingIdAmbiguity {
+                object_id: "canvas:stable".into(),
+                binding_id: "outline".into(),
+                before_count: 2,
+                after_count: 1,
+            }],
             execution_handle_churn: vec![EguiAuthoredExecutionHandleChange {
                 id: "canvas:stable".into(),
+                authored_binding_id: Some("handle".into()),
                 binding_ordinal: 0,
                 before_shape_index: 3,
                 after_shape_index: 4,
@@ -39,12 +46,15 @@ fn correlated_diff_text_separates_ambiguity_and_non_material_handle_churn() {
         "authored-ambiguity id=\"duplicate\" before_count=2 after_count=1 matching=refused"
     ));
     assert!(text.contains(
-        "authored-handle-churn id=\"canvas:stable\" binding_ordinal=0 before_shape_index=3 after_shape_index=4 material=false continuity=frame_local_structure_sensitive"
+        "authored-binding-ambiguity object_id=\"canvas:stable\" authored_binding_id=\"outline\" before_count=2 after_count=1 matching=refused"
+    ));
+    assert!(text.contains(
+        "authored-handle-churn id=\"canvas:stable\" authored_binding_id=\"handle\" binding_ordinal=0 before_shape_index=3 after_shape_index=4 material=false continuity=frame_local_structure_sensitive"
     ));
 }
 
 #[test]
-fn handle_churn_alone_projects_as_materially_empty() {
+fn unkeyed_handle_churn_keeps_legacy_projection_and_is_materially_empty() {
     let diff = EguiCorrelatedDiff {
         before_request_id: 1,
         after_request_id: 2,
@@ -56,8 +66,10 @@ fn handle_churn_alone_projects_as_materially_empty() {
             objects_removed: Vec::new(),
             objects_changed: Vec::new(),
             ambiguous_ids: Vec::new(),
+            binding_ambiguities: Vec::new(),
             execution_handle_churn: vec![EguiAuthoredExecutionHandleChange {
                 id: "canvas:stable".into(),
+                authored_binding_id: None,
                 binding_ordinal: 0,
                 before_shape_index: 8,
                 after_shape_index: 9,
@@ -72,7 +84,10 @@ fn handle_churn_alone_projects_as_materially_empty() {
             .unwrap()
             .ends_with("materially_empty=true")
     );
-    assert!(text.contains("material=false"));
+    assert!(text.contains(
+        "authored-handle-churn id=\"canvas:stable\" binding_ordinal=0 before_shape_index=8 after_shape_index=9 material=false"
+    ));
+    assert!(!text.contains("authored_binding_id="));
 }
 
 fn empty_witness_diff(before_frame: u64, after_frame: u64) -> WitnessDiff {
