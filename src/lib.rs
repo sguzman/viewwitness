@@ -6,6 +6,8 @@
 mod agent_text;
 mod diff;
 #[cfg(feature = "egui")]
+mod egui_agent_text;
+#[cfg(feature = "egui")]
 mod egui_capture;
 #[cfg(feature = "egui")]
 mod egui_capture_transport;
@@ -25,6 +27,8 @@ mod model;
 
 pub use agent_text::{diff_to_agent_text, to_agent_text};
 pub use diff::{FieldChange, NodeChange, ViewportChange, WitnessDiff, diff_witnesses};
+#[cfg(feature = "egui")]
+pub use egui_agent_text::correlated_capture_to_agent_text;
 #[cfg(feature = "egui")]
 pub use egui_capture::{
     EguiCaptureContext, witness_from_egui_output, witness_from_egui_tree_update,
