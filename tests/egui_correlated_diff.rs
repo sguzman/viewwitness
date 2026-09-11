@@ -78,12 +78,7 @@ fn material_binding_change_is_reported_without_using_shape_index_as_identity() {
             4,
         )],
     );
-    let mut changed = authored_object(
-        "canvas:node",
-        "diagram_node",
-        EguiPaintKind::Circle,
-        17,
-    );
+    let mut changed = authored_object("canvas:node", "diagram_node", EguiPaintKind::Circle, 17);
     changed.bindings[0].bounds = Some(Rect {
         x: 12.0,
         y: 10.0,
@@ -96,7 +91,10 @@ fn material_binding_change_is_reported_without_using_shape_index_as_identity() {
     assert_eq!(diff.authored.objects_changed.len(), 1);
     let change = &diff.authored.objects_changed[0];
     assert_eq!(change.id, "canvas:node");
-    assert_eq!(change.fields.keys().map(String::as_str).collect::<Vec<_>>(), vec!["bindings"]);
+    assert_eq!(
+        change.fields.keys().map(String::as_str).collect::<Vec<_>>(),
+        vec!["bindings"]
+    );
     assert!(diff.authored.execution_handle_churn.is_empty());
     assert!(!diff.is_materially_empty());
 }
@@ -109,7 +107,9 @@ fn capture_object(
 ) -> EguiCorrelatedCapture {
     use egui::epaint::RectShape;
 
-    probe.request_capture().expect("request correlated diff capture");
+    probe
+        .request_capture()
+        .expect("request correlated diff capture");
     let bounds = egui::Rect::from_min_size(egui::pos2(40.0, 30.0), egui::vec2(60.0, 40.0));
     let prefix = egui::Rect::from_min_size(egui::pos2(5.0, 5.0), egui::vec2(10.0, 10.0));
 
@@ -135,7 +135,10 @@ fn capture_object(
         .expect("convert correlated diff capture")
 }
 
-fn synthetic_capture(pass_nr: u64, authored_objects: Vec<EguiAuthoredPaintObject>) -> EguiCorrelatedCapture {
+fn synthetic_capture(
+    pass_nr: u64,
+    authored_objects: Vec<EguiAuthoredPaintObject>,
+) -> EguiCorrelatedCapture {
     let witness = from_yaml(&format!(
         r#"
 viewwitness_version: "0.1"
