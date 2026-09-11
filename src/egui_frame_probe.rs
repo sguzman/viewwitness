@@ -13,8 +13,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
-    EguiCaptureContext, EguiPaintObservation, Rect, Viewport, Witness,
-    paint_observations_from_egui_output, witness_from_egui_tree_update,
+    EguiAuthoredPaintObject, EguiCaptureContext, EguiPaintAnnotator, EguiPaintObservation, Rect,
+    Viewport, Witness, paint_observations_from_egui_output, witness_from_egui_tree_update,
+};
+use crate::egui_paint_annotation::{
+    PendingPaintObjects, clear_pending_paint_objects, new_pending_paint_objects,
+    resolve_pending_paint_objects,
 };
 
 const DROP_POLL_INTERVAL: Duration = Duration::from_millis(10);
@@ -23,8 +27,8 @@ const DROP_POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// explicit ViewWitness capture request.
 ///
 /// Unlike the independent external inspection and continuous paint channels,
-/// `accesskit`, `viewport_rect`, and `paint` in this value are known to
-/// originate from the same egui output hook invocation. The type remains
+/// `accesskit`, `viewport_rect`, `paint`, and `authored_objects` in this value
+/// are known to originate from the same requested egui pass. The type remains
 /// egui-specific integration evidence rather than canonical `Witness` state.
 #[derive(Debug, Clone)]
 pub struct EguiFrameEvidence {
@@ -35,14 +39,16 @@ pub struct EguiFrameEvidence {
     pub viewport_rect: Rect,
     pub accesskit: Option<TreeUpdate>,
     pub paint: Vec<EguiPaintObservation>,
+    pub authored_objects: Vec<EguiAuthoredPaintObject>,
 }
 
 /// Off-thread product of one exact same-`FullOutput` egui capture.
 ///
-/// The semantic half is converted into the canonical `Witness`; the paint half
-/// deliberately remains provisional egui evidence. `witness.capture.frame`
-/// uses `pass_nr`, and metadata names that clock explicitly so consumers do not
-/// confuse it with `egui_inspection`'s unrelated step counter.
+/// The semantic half is converted into the canonical `Witness`; the paint and
+/// authored-object halves deliberately remain provisional egui evidence.
+/// `witness.capture.frame` uses `pass_nr`, and metadata names that clock
+/// explicitly so consumers do not confuse it with `egui_inspection`'s
+/// unrelated step counter.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EguiCorrelatedCapture {
     pub request_id: u64,
@@ -51,11 +57,13 @@ pub struct EguiCorrelatedCapture {
     pub viewport_rect: Rect,
     pub witness: Witness,
     pub paint: Vec<EguiPaintObservation>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub authored_objects: Vec<EguiAuthoredPaintObject>,
 }
 
 impl EguiFrameEvidence {
     /// Convert raw same-pass evidence into a canonical semantic witness plus
-    /// its correlated provisional paint evidence.
+    /// its correlated provisional egui evidence.
     ///
     /// This is worker-side work. Viewport size comes from egui's observed
     /// viewport rectangle copied from the same output-hook invocation; AccessKit
@@ -117,6 +125,12 @@ impl EguiFrameEvidence {
                 "height": self.viewport_rect.height,
             }),
         );
+        if !self.authored_objects.is_empty() {
+            witness.capture.metadata.insert(
+                "authored_paint_evidence".into(),
+                json!("application_semantics_plus_verified_egui_paint_handle"),
+            );
+        }
 
         Ok(EguiCorrelatedCapture {
             request_id: self.request_id,
@@ -125,6 +139,7 @@ impl EguiFrameEvidence {
             viewport_rect: self.viewport_rect,
             witness,
             paint: self.paint,
+            authored_objects: self.authored_objects,
         })
     }
 }
@@ -140,6 +155,10 @@ struct EguiFrameProbePlugin {
     sender: SyncSender<EguiFrameEvidence>,
     handled_request_id: u64,
     connected: bool,
+    active_capture_request: Option<u64>,
+    active_annotation_request: Arc<AtomicU64>,
+    pending_annotations: PendingPaintObjects,
+    resolved_annotations: Vec<EguiAuthoredPaintObject>,
 }
 
 impl egui::Plugin for EguiFrameProbePlugin {
@@ -152,7 +171,11 @@ impl egui::Plugin for EguiFrameProbePlugin {
         ctx.enable_accesskit();
     }
 
-    fn output_hook(&mut self, ctx: &egui::Context, output: &mut egui::FullOutput) {
+    fn on_begin_pass(&mut self, _ui: &mut egui::Ui) {
+        self.active_capture_request = None;
+        self.active_annotation_request.store(0, Ordering::Release);
+        self.resolved_annotations.clear();
+
         if !self.connected {
             return;
         }
@@ -161,6 +184,32 @@ impl egui::Plugin for EguiFrameProbePlugin {
         if request_id == 0 || request_id <= self.handled_request_id {
             return;
         }
+
+        // Capture eligibility is fixed at pass start. A request arriving halfway
+        // through a pass waits for the next repaint so explicit authored paint
+        // annotations cannot describe only a suffix of the captured frame.
+        clear_pending_paint_objects(&self.pending_annotations);
+        self.active_capture_request = Some(request_id);
+        self.active_annotation_request
+            .store(request_id, Ordering::Release);
+    }
+
+    fn on_end_pass(&mut self, ui: &mut egui::Ui) {
+        if self.active_capture_request.is_some() {
+            self.resolved_annotations =
+                resolve_pending_paint_objects(ui.ctx(), &self.pending_annotations);
+        }
+        self.active_annotation_request.store(0, Ordering::Release);
+    }
+
+    fn output_hook(&mut self, ctx: &egui::Context, output: &mut egui::FullOutput) {
+        if !self.connected {
+            return;
+        }
+
+        let Some(request_id) = self.active_capture_request.take() else {
+            return;
+        };
 
         // Mark this request handled before copying. A full response queue must
         // never cause an implicit retry/repaint loop on later GUI passes.
@@ -180,6 +229,7 @@ impl egui::Plugin for EguiFrameProbePlugin {
             },
             accesskit: output.platform_output.accesskit_update.clone(),
             paint: paint_observations_from_egui_output(output),
+            authored_objects: std::mem::take(&mut self.resolved_annotations),
         };
 
         match self.sender.try_send(evidence) {
@@ -208,6 +258,8 @@ pub struct EguiFrameProbe {
     receiver: Receiver<EguiFrameEvidence>,
     next_request_id: u64,
     pending_request_id: Option<u64>,
+    active_annotation_request: Arc<AtomicU64>,
+    pending_annotations: PendingPaintObjects,
 }
 
 impl EguiFrameProbe {
@@ -219,11 +271,18 @@ impl EguiFrameProbe {
     pub fn install(ctx: &egui::Context, response_capacity: usize) -> Self {
         let state = Arc::new(ProbeState::default());
         let (sender, receiver) = sync_channel(response_capacity.max(1));
+        let active_annotation_request = Arc::new(AtomicU64::new(0));
+        let pending_annotations = new_pending_paint_objects();
+
         ctx.add_plugin(EguiFrameProbePlugin {
             state: Arc::clone(&state),
             sender,
             handled_request_id: 0,
             connected: true,
+            active_capture_request: None,
+            active_annotation_request: Arc::clone(&active_annotation_request),
+            pending_annotations: Arc::clone(&pending_annotations),
+            resolved_annotations: Vec::new(),
         });
 
         Self {
@@ -232,7 +291,21 @@ impl EguiFrameProbe {
             receiver,
             next_request_id: 0,
             pending_request_id: None,
+            active_annotation_request,
+            pending_annotations,
         }
+    }
+
+    /// Return a lightweight application-side annotator tied to this exact probe.
+    ///
+    /// The annotator may be cloned and kept by UI code after the worker-side
+    /// probe itself is moved into a capture server thread.
+    #[must_use]
+    pub fn annotator(&self) -> EguiPaintAnnotator {
+        EguiPaintAnnotator::new(
+            Arc::clone(&self.active_annotation_request),
+            Arc::clone(&self.pending_annotations),
+        )
     }
 
     /// Request one correlated capture and wake an idle egui integration.
