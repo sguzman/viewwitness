@@ -78,7 +78,7 @@ relations: []
             semantic_evidence: "intended".into(),
             bindings: vec![
                 EguiAuthoredPaintBinding {
-                    authored_binding_id: None,
+                    authored_binding_id: Some("outline".into()),
                     binding_evidence: "observed".into(),
                     layer_order: EguiLayerOrder::Background,
                     layer_id: 42,
@@ -124,7 +124,7 @@ relations: []
         "view version=\"0\" source=\"egui\" viewport=[100,50,1] frame=9\n",
         "node id=\"ak:1\" role=\"button\" name=\"Apply\" bounds=[10,10,20,10]\n",
         "authored-object index=0 id=\"canvas:node\" role=\"diagram_node\" name=\"Node\" semantic_evidence=\"intended\" binding_count=2\n",
-        "authored-binding object_index=0 binding_index=0 object_id=\"canvas:node\" binding_evidence=\"observed\" layer_order=\"background\" layer_id=42 shape_index=3 verified=true kind=\"rect\" bounds=[20,20,30,20] clip=unbounded visible_fraction=1 visible_fraction_evidence=derived_bbox_clip visible_bounds=[20,20,30,20]\n",
+        "authored-binding object_index=0 binding_index=0 object_id=\"canvas:node\" authored_binding_id=\"outline\" binding_evidence=\"observed\" layer_order=\"background\" layer_id=42 shape_index=3 verified=true kind=\"rect\" bounds=[20,20,30,20] clip=unbounded visible_fraction=1 visible_fraction_evidence=derived_bbox_clip visible_bounds=[20,20,30,20]\n",
         "authored-binding object_index=0 binding_index=1 object_id=\"canvas:node\" binding_evidence=\"observed\" layer_order=\"background\" layer_id=42 shape_index=4 verified=true kind=\"circle\" bounds=[30,20,20,20] clip=[30,20,10,20] visible_fraction=0.5 visible_fraction_evidence=derived_bbox_clip visible_bounds=[30,20,10,20]\n",
         "paint order=1 kind=\"circle\" bounds=[0,0,10,10] clip=[0,0,5,10] visible_fraction=0.5 visible_fraction_evidence=derived_bbox_clip visible_bounds=[0,0,5,10]\n",
         "paint order=2 kind=\"rect\" bounds=[0,0,10,10] clip=unbounded visible_fraction=1 visible_fraction_evidence=derived_bbox_clip visible_bounds=[0,0,10,10]\n",
