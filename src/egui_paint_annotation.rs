@@ -206,8 +206,12 @@ pub(crate) fn resolve_pending_paint_objects(
         .collect()
 }
 
-fn lock_pending(pending: &PendingPaintObjects) -> std::sync::MutexGuard<'_, Vec<PendingPaintObject>> {
-    pending.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+fn lock_pending(
+    pending: &PendingPaintObjects,
+) -> std::sync::MutexGuard<'_, Vec<PendingPaintObject>> {
+    pending
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn rect_from_egui(rect: egui::Rect) -> Option<Rect> {
