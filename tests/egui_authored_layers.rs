@@ -12,7 +12,9 @@ fn one_authored_object_can_bind_shapes_across_distinct_egui_layers() {
     let ctx = egui::Context::default();
     let mut probe = EguiFrameProbe::install(&ctx, 1);
     let annotator = probe.annotator();
-    probe.request_capture().expect("request multi-layer capture");
+    probe
+        .request_capture()
+        .expect("request multi-layer capture");
 
     let background_layer = LayerId::new(Order::Background, Id::new("viewwitness-test-background"));
     let foreground_layer = LayerId::new(Order::Foreground, Id::new("viewwitness-test-foreground"));
