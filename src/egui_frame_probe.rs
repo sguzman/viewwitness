@@ -12,13 +12,13 @@ use egui::accesskit::TreeUpdate;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::{
-    EguiAuthoredPaintObject, EguiCaptureContext, EguiPaintAnnotator, EguiPaintObservation, Rect,
-    Viewport, Witness, paint_observations_from_egui_output, witness_from_egui_tree_update,
-};
 use crate::egui_paint_annotation::{
     PendingPaintObjects, clear_pending_paint_objects, new_pending_paint_objects,
     resolve_pending_paint_objects,
+};
+use crate::{
+    EguiAuthoredPaintObject, EguiCaptureContext, EguiPaintAnnotator, EguiPaintObservation, Rect,
+    Viewport, Witness, paint_observations_from_egui_output, witness_from_egui_tree_update,
 };
 
 const DROP_POLL_INTERVAL: Duration = Duration::from_millis(10);
