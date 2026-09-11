@@ -249,6 +249,7 @@ relations: []
     .expect("parse exact CLI semantic witness");
 
     let binding = |shape_index, kind| EguiAuthoredPaintBinding {
+        authored_binding_id: None,
         binding_evidence: "observed".into(),
         layer_order: EguiLayerOrder::Background,
         layer_id: 42,
