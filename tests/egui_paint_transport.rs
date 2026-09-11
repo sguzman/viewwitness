@@ -1,10 +1,6 @@
 #![cfg(feature = "egui")]
 
-use std::{
-    io::Write,
-    net::TcpListener,
-    thread,
-};
+use std::{io::Write, net::TcpListener, thread};
 
 use viewwitness::{
     EguiPaintKind, EguiPaintObserver, EguiPaintReporter, Rect, run_egui_paint_server,
@@ -22,7 +18,8 @@ fn paint_side_channel_replays_latest_then_streams_new_frames() {
 
     run_painted_pass(&ctx, 10.0);
 
-    let mut observer = EguiPaintObserver::connect(&addr.to_string()).expect("connect paint observer");
+    let mut observer =
+        EguiPaintObserver::connect(&addr.to_string()).expect("connect paint observer");
     let first = observer
         .next_frame()
         .expect("latest frame is replayed after connect");
