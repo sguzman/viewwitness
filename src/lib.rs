@@ -28,5 +28,5 @@ pub use geometry::{
     GeometryOptions, derive_geometry_relations, derive_geometry_relations_with_options,
 };
 #[cfg(feature = "observer")]
-pub use inspection_observer::{InspectionObserver, SettleResult};
+pub use inspection_observer::{InspectionObserver, ScreenshotEvidence, SettleResult};
 pub use model::{Capture, Node, NodeIdentity, Rect, Relation, Viewport, Witness};
