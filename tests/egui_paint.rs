@@ -1,6 +1,6 @@
 #![cfg(feature = "egui")]
 
-use viewwitness::{Rect, paint_observations_from_egui_output};
+use viewwitness::{EguiPaintKind, Rect, paint_observations_from_egui_output};
 
 #[test]
 fn paint_probe_preserves_visual_bounds_clip_and_renderer_order() {
@@ -29,7 +29,7 @@ fn paint_probe_preserves_visual_bounds_clip_and_renderer_order() {
     let clipped_rect = observations
         .iter()
         .find(|observation| {
-            observation.kind == "rect"
+            observation.kind == EguiPaintKind::Rect
                 && observation.bounds
                     == Rect {
                         x: 20.0,
@@ -63,7 +63,7 @@ fn paint_probe_preserves_visual_bounds_clip_and_renderer_order() {
     let circle = observations
         .iter()
         .find(|observation| {
-            observation.kind == "circle"
+            observation.kind == EguiPaintKind::Circle
                 && observation.bounds.x == 190.0
                 && observation.bounds.y == 90.0
         })
@@ -77,4 +77,17 @@ fn paint_probe_preserves_visual_bounds_clip_and_renderer_order() {
     );
 
     output.drop_without_applying_deltas();
+}
+
+#[test]
+fn paint_kind_serialization_is_stable_and_allocation_free_at_capture_time() {
+    assert_eq!(
+        serde_json::to_string(&EguiPaintKind::LineSegment).expect("serialize paint kind"),
+        "\"line_segment\""
+    );
+    assert_eq!(
+        serde_json::from_str::<EguiPaintKind>("\"quadratic_bezier\"")
+            .expect("deserialize paint kind"),
+        EguiPaintKind::QuadraticBezier
+    );
 }
