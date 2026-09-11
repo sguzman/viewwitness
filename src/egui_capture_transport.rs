@@ -56,6 +56,7 @@ pub fn run_egui_capture_server(
 }
 
 /// Read-only client for ViewWitness's exact correlated egui capture endpoint.
+#[derive(Debug)]
 pub struct EguiCaptureObserver {
     reader: BufReader<TcpStream>,
     writer: BufWriter<TcpStream>,
