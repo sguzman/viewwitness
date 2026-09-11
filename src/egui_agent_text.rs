@@ -41,9 +41,7 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
     output.push_str(&to_agent_text(&capture.witness));
 
     let mut authored: Vec<_> = capture.authored_objects.iter().collect();
-    authored.sort_by(|a, b| {
-        (&a.id, &a.role, &a.name).cmp(&(&b.id, &b.role, &b.name))
-    });
+    authored.sort_by(|a, b| (&a.id, &a.role, &a.name).cmp(&(&b.id, &b.role, &b.name)));
     for (object_index, object) in authored.into_iter().enumerate() {
         write!(
             output,
@@ -101,8 +99,7 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
                     write!(output, " visible_bounds={}", rect(visible))
                         .expect("writing to String cannot fail");
                 } else {
-                    write!(output, " visible_bounds=none")
-                        .expect("writing to String cannot fail");
+                    write!(output, " visible_bounds=none").expect("writing to String cannot fail");
                 }
             }
             output.push('\n');
