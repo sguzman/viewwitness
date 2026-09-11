@@ -148,8 +148,7 @@ fn authored_custom_paint_binds_identity_to_real_shape_slots_not_geometry() {
     let annotator = probe.annotator();
     probe.request_capture().expect("request annotated capture");
 
-    let shared_rect =
-        egui::Rect::from_min_size(egui::pos2(40.0, 30.0), egui::vec2(40.0, 40.0));
+    let shared_rect = egui::Rect::from_min_size(egui::pos2(40.0, 30.0), egui::vec2(40.0, 40.0));
     let mut first_shape_index = None;
     let mut second_shape_index = None;
 
@@ -205,14 +204,20 @@ fn authored_custom_paint_binds_identity_to_real_shape_slots_not_geometry() {
     assert_eq!(first.binding_evidence, "observed");
     assert_eq!(first.layer_order, EguiLayerOrder::Background);
     assert!(first.verified_at_end_pass);
-    assert_eq!(first.shape_index, first_shape_index.expect("first shape index"));
+    assert_eq!(
+        first.shape_index,
+        first_shape_index.expect("first shape index")
+    );
     assert_eq!(first.kind, Some(EguiPaintKind::Circle));
 
     assert_eq!(second.semantic_evidence, "intended");
     assert_eq!(second.binding_evidence, "observed");
     assert_eq!(second.layer_order, EguiLayerOrder::Background);
     assert!(second.verified_at_end_pass);
-    assert_eq!(second.shape_index, second_shape_index.expect("second shape index"));
+    assert_eq!(
+        second.shape_index,
+        second_shape_index.expect("second shape index")
+    );
     assert_eq!(second.kind, Some(EguiPaintKind::Rect));
 
     assert_ne!(
