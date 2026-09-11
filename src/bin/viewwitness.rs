@@ -159,9 +159,10 @@ fn screenshot_command(args: Vec<String>) -> io::Result<()> {
             }
             addr = value.to_owned();
         } else if let Some(value) = arg.strip_prefix("--scale=") {
-            scale = Some(value.parse::<f32>().map_err(|error| {
-                invalid(format!("invalid --scale value {value:?}: {error}"))
-            })?);
+            scale =
+                Some(value.parse::<f32>().map_err(|error| {
+                    invalid(format!("invalid --scale value {value:?}: {error}"))
+                })?);
         } else if arg.starts_with('-') {
             return Err(invalid(format!("unknown screenshot option {arg:?}")));
         } else if output_path.replace(arg).is_some() {
