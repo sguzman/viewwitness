@@ -17,14 +17,11 @@ These are related but not interchangeable.
 
 A submitted paint shape can exist while being fully clipped. A semantic node can exist without a unique paint primitive. A paint primitive can exist without any AccessKit node. A screenshot can show the final pixels without explaining which semantic object or paint submission produced them.
 
-ViewWitness should preserve these distinctions rather than choosing one representation and pretending it exhausts GUI reality.
+ViewWitness preserves these distinctions rather than choosing one representation and pretending it exhausts GUI reality.
 
 ## What egui publicly exposes
 
-`egui::FullOutput` exposes `shapes: Vec<ClippedShape>` as the renderer-facing paint list. Each `ClippedShape` contains:
-
-- a `Shape`;
-- a clip/scissor rectangle.
+`egui::FullOutput` exposes `shapes: Vec<ClippedShape>` as the renderer-facing paint list. Each `ClippedShape` contains a `Shape` and a clip/scissor rectangle.
 
 `Shape::visual_bounding_rect()` provides an axis-aligned visual bounding box. egui's graphics drain flattens ordered layer paint lists into the `FullOutput::shapes` sequence, so sequence position is usable observed back-to-front paint-order evidence.
 
@@ -81,7 +78,7 @@ Reasons include:
 - multiple paint primitives belonging to one widget;
 - one paint primitive spanning several semantic concepts.
 
-Therefore ViewWitness should not derive canonical `occludes` merely from `later paint order + rectangle overlap`.
+Therefore ViewWitness does not derive canonical `occludes` merely from `later paint order + rectangle overlap`.
 
 A future lower-level relation such as `painted_after` or a paint-overlap diagnostic may be justified, but it should remain clearly weaker than a proven visual occlusion claim.
 
@@ -105,7 +102,7 @@ The reporter performs no JSON/YAML serialization, persistence, network I/O, diff
 
 Loss is therefore observable evidence rather than a hidden consequence of protecting the render thread.
 
-## Read-only paint side channel
+## Read-only continuous paint side channel
 
 The worker-side `run_egui_paint_server` and `EguiPaintObserver` expose paint frames outside the GUI process without extending or impersonating `egui_inspection`.
 
@@ -126,31 +123,68 @@ An end-to-end loopback test paints a frame before any observer connects, then es
 
 The side channel is intentionally read-only. It is evidence transport, not an input/control protocol.
 
-## Temporal correlation is not yet solved
+## Independent live streams are not exact correlation
 
-The external semantic and paint channels expose different clocks:
+The external `egui_inspection` semantic stream and continuous ViewWitness paint stream expose different clocks:
 
 - `egui_inspection::Response::Tree.step` is a counter owned by the inspection plugin and incremented in that plugin's `output_hook`;
 - `EguiPaintFrame.pass_nr` is egui's cumulative pass number for the active viewport.
 
 The inspection counter is plugin-global while egui pass numbering is viewport-aware. Their values must therefore **not** be equated or joined by an assumed fixed offset.
 
-This means an external AccessKit witness and an external paint frame are currently independently valid observations, but ViewWitness does not claim they describe the exact same pass.
+An external AccessKit witness and an independently streamed paint frame are valid observations, but ViewWitness does not claim they describe the exact same pass.
 
-Exact semantic↔paint correlation will require a shared ViewWitness capture point or an upstream transport that exposes a trustworthy shared frame token. Clock guessing is not an acceptable substitute.
+## Exact same-pass correlation
 
-## The widget-to-paint gap
+`EguiFrameProbe` solves exact semantic↔paint correlation by avoiding clock reconciliation entirely.
+
+A worker requests one capture. The request wakes egui. One subsequent ViewWitness `output_hook` invocation copies, from that pass:
+
+- the AccessKit update attached to the `FullOutput`;
+- the renderer-facing paint projection of that same `FullOutput`;
+- egui's active viewport identity;
+- egui's cumulative pass number;
+- pixels per point;
+- egui's current viewport rectangle.
+
+The result is sent through a bounded channel using `try_send`. If the response queue is full, the request is explicitly reported as dropped; the GUI hook never blocks and never retries the heavy copy in a repaint loop.
+
+The executable probe test independently computes the expected paint projection from the returned `FullOutput` and verifies equality with the probe result. It also verifies that the copied AccessKit tree contains the same frame's semantic identity. This is therefore stronger than temporal proximity: both evidence sets are observed from one exact `FullOutput` invocation.
+
+`EguiFrameEvidence::into_correlated_capture()` performs the heavier conversion off-thread and yields `EguiCorrelatedCapture`:
+
+- a canonical semantic `Witness`;
+- the provisional egui paint observations known to share its capture pass;
+- explicit request, viewport, pass, and viewport-rectangle evidence.
+
+The canonical witness metadata names the clock (`egui_cumulative_pass_nr`) and correlation basis (`same_full_output`) rather than asking consumers to infer them.
+
+## Viewport evidence finding
+
+An early correlated-capture implementation attempted to derive viewport dimensions from AccessKit root bounds, matching the external inspection observer's only currently available strategy.
+
+The all-features executable test rejected that assumption: a valid headless egui `FullOutput` can contain useful AccessKit semantics while its root lacks usable bounds, even though egui itself knows the viewport.
+
+The in-process same-pass probe now copies `InputState::viewport_rect()` directly. `EguiCorrelatedCapture` preserves the full observed rectangle, including origin, while canonical `Viewport` currently uses its width and height. Invalid/non-finite observed viewport geometry is an error; ViewWitness does not fall back to invented dimensions.
+
+This produces an important source rule:
+
+> Prefer the strongest direct evidence available at the capture boundary. Do not reconstruct a fact from a weaker representation merely because another transport is forced to do so.
+
+The external `egui_inspection` observer may still need AccessKit-root reconstruction because upstream does not expose the in-process viewport fact through that response. The exact ViewWitness probe does not.
+
+## The widget-to-paint gap remains
 
 egui internally has rich `WidgetRect` / `WidgetRects` information including widget ID, parent UI ID, layer ID, full rectangle, clipped interaction rectangle, enabled state, interaction sense, and back-to-front ordering within layers.
 
 That data is highly relevant to ViewWitness, but the complete collection is not currently exposed through the public generic plugin hooks or the `egui_inspection` tree protocol. The inspection protocol exposes AccessKit state and screenshot capture, not the renderer paint list or the full widget-rectangle table.
 
-ViewWitness must therefore **not invent an automatic AccessKit-node → paint-shape mapping** from coincident geometry or labels and then report it as observation.
+Even with exact same-pass semantic and paint capture, ViewWitness must therefore **not invent an automatic AccessKit-node → paint-shape mapping** from coincident geometry or labels and then report it as observation. Same time does not imply same identity.
 
 Potential future paths include:
 
-- a shared ViewWitness-specific capture request that copies semantic + paint evidence from one `FullOutput` only when requested, then immediately hands it to an off-thread worker;
-- an upstream egui/inspection extension exposing the missing structured evidence and a shared frame token;
+- an upstream egui/inspection extension exposing the missing widget evidence;
+- a narrowly scoped ViewWitness integration hook if public egui APIs eventually expose enough widget metadata;
 - explicit application annotations for custom-painted objects.
 
 Any such path must preserve the project rule that the GUI thread reports cheap state and does not perform serialization, searching, diffing, networking, or analysis.
@@ -164,7 +198,7 @@ For now:
 - AccessKit semantic evidence belongs in canonical witnesses;
 - egui paint observations remain a research/integration structure;
 - bounding-box clip survival is deterministic derived evidence;
-- the live paint side channel transports egui-specific evidence without promoting it into the canonical model;
-- screenshots remain supporting raster evidence;
-- semantic↔paint same-frame correlation remains unproven across the two external channels;
+- the continuous paint side channel transports egui-specific evidence without promoting it into the canonical model;
+- `EguiCorrelatedCapture` can prove semantic+paint same-pass origin without claiming widget↔paint identity;
+- screenshots remain supporting raster evidence unless their transport supplies trustworthy same-frame correlation;
 - widget↔paint association remains unknown unless a source explicitly supplies it.
