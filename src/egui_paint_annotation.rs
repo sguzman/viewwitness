@@ -86,6 +86,41 @@ pub struct EguiAuthoredPaintObject {
     pub clip_rect: Option<Rect>,
 }
 
+impl EguiAuthoredPaintObject {
+    /// Intersect the final observed visual bounds with the final observed finite
+    /// clip rectangle for this verified paint slot.
+    ///
+    /// `None` means the handle could not provide usable bounds. An unbounded
+    /// clip leaves the observed bounds unchanged.
+    #[must_use]
+    pub fn visible_bounds(&self) -> Option<Rect> {
+        let bounds = self.bounds?;
+        match self.clip_rect {
+            Some(clip) => bounds.intersection(clip),
+            None => Some(bounds),
+        }
+    }
+
+    /// Fraction of the authored object's final axis-aligned visual bounds that
+    /// survives the final observed clip rectangle.
+    ///
+    /// Like [`crate::EguiPaintObservation::visible_fraction`], this is derived
+    /// bounding-box evidence, not exact painted-pixel or alpha coverage.
+    #[must_use]
+    pub fn visible_fraction(&self) -> f32 {
+        let Some(bounds) = self.bounds else {
+            return 0.0;
+        };
+        let area = bounds.area();
+        if area <= 0.0 || !area.is_finite() {
+            return 0.0;
+        }
+
+        self.visible_bounds()
+            .map_or(0.0, |visible| (visible.area() / area).clamp(0.0, 1.0))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct PendingPaintObject {
     pub descriptor: EguiPaintObjectDescriptor,
