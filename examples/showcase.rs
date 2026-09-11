@@ -178,8 +178,7 @@ fn install_viewwitness_services(
         if let Err(error) = thread::Builder::new()
             .name("viewwitness-capture-server".into())
             .spawn(move || {
-                if let Err(error) =
-                    run_egui_capture_server(listener, probe, Duration::from_secs(2))
+                if let Err(error) = run_egui_capture_server(listener, probe, Duration::from_secs(2))
                 {
                     eprintln!("ViewWitness showcase exact capture server stopped: {error}");
                 }
