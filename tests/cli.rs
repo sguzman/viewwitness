@@ -143,11 +143,11 @@ fn capture_exact_defaults_to_correlated_agent_text() {
         )
     );
     assert!(stdout.contains("node id=\"ak:1\" role=\"button\" name=\"Apply\""));
-    assert!(
-        stdout.contains(
-            "authored-object id=\"canvas:node\" role=\"diagram_node\" name=\"Canvas node\""
-        )
-    );
+    assert!(stdout.contains(
+        "authored-object index=0 id=\"canvas:node\" role=\"diagram_node\" name=\"Canvas node\""
+    ));
+    assert!(stdout.contains("binding_count=2"));
+    assert!(stdout.contains("authored-binding object_index=0 binding_index=1"));
     assert!(stdout.contains("binding_evidence=\"observed\""));
     assert!(stdout.contains("paint order=1 kind=\"rect\" bounds=[10,10,20,10]"));
     assert!(stdout.contains("correlation=same_full_output"));
@@ -173,8 +173,10 @@ fn capture_exact_yaml_preserves_full_correlated_envelope() {
     assert!(stdout.contains("paint:"));
     assert!(stdout.contains("authored_objects:"));
     assert!(stdout.contains("id: canvas:node"));
-    assert!(stdout.contains("binding_evidence: observed"));
+    assert!(stdout.contains("bindings:"));
+    assert_eq!(stdout.matches("binding_evidence: observed").count(), 2);
     assert!(stdout.contains("kind: rect"));
+    assert!(stdout.contains("kind: circle"));
     server.join().expect("mock exact peer exits cleanly");
 }
 
@@ -218,8 +220,8 @@ fn spawn_exact_capture_peer(
 #[cfg(feature = "egui")]
 fn sample_correlated_capture() -> viewwitness::EguiCorrelatedCapture {
     use viewwitness::{
-        EguiAuthoredPaintObject, EguiCorrelatedCapture, EguiLayerOrder, EguiPaintKind,
-        EguiPaintObservation, Rect, from_yaml,
+        EguiAuthoredPaintBinding, EguiAuthoredPaintObject, EguiCorrelatedCapture, EguiLayerOrder,
+        EguiPaintKind, EguiPaintObservation, Rect, from_yaml,
     };
 
     let witness = from_yaml(
@@ -245,6 +247,22 @@ relations: []
 "#,
     )
     .expect("parse exact CLI semantic witness");
+
+    let binding = |shape_index, kind| EguiAuthoredPaintBinding {
+        binding_evidence: "observed".into(),
+        layer_order: EguiLayerOrder::Background,
+        layer_id: 42,
+        shape_index,
+        verified_at_end_pass: true,
+        kind: Some(kind),
+        bounds: Some(Rect {
+            x: 10.0,
+            y: 10.0,
+            width: 20.0,
+            height: 10.0,
+        }),
+        clip_rect: None,
+    };
 
     EguiCorrelatedCapture {
         request_id: 7,
@@ -273,19 +291,10 @@ relations: []
             role: "diagram_node".into(),
             name: Some("Canvas node".into()),
             semantic_evidence: "intended".into(),
-            binding_evidence: "observed".into(),
-            layer_order: EguiLayerOrder::Background,
-            layer_id: 42,
-            shape_index: 3,
-            verified_at_end_pass: true,
-            kind: Some(EguiPaintKind::Rect),
-            bounds: Some(Rect {
-                x: 10.0,
-                y: 10.0,
-                width: 20.0,
-                height: 10.0,
-            }),
-            clip_rect: None,
+            bindings: vec![
+                binding(3, EguiPaintKind::Rect),
+                binding(4, EguiPaintKind::Circle),
+            ],
         }],
     }
 }
