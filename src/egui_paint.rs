@@ -2,6 +2,28 @@ use serde::{Deserialize, Serialize};
 
 use crate::Rect;
 
+/// Compact classification of an egui paint primitive.
+///
+/// This is deliberately an enum instead of a `String`: paint capture runs at
+/// egui's renderer-facing output boundary, so classifying a shape must not heap
+/// allocate once per primitive just to preserve a fixed vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EguiPaintKind {
+    Noop,
+    Group,
+    Circle,
+    Ellipse,
+    LineSegment,
+    Path,
+    Rect,
+    Text,
+    Mesh,
+    QuadraticBezier,
+    CubicBezier,
+    Callback,
+}
+
 /// Provisional observation of one egui paint entry.
 ///
 /// This is intentionally egui-specific research evidence, not yet part of the
@@ -11,7 +33,7 @@ use crate::Rect;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EguiPaintObservation {
     pub order: usize,
-    pub kind: String,
+    pub kind: EguiPaintKind,
     pub bounds: Rect,
     /// egui's observed scissor/clip rectangle when it is finite.
     ///
@@ -68,7 +90,7 @@ pub fn paint_observations_from_egui_output(output: &egui::FullOutput) -> Vec<Egu
 
             Some(EguiPaintObservation {
                 order,
-                kind: shape_kind(&clipped.shape).into(),
+                kind: shape_kind(&clipped.shape),
                 bounds,
                 clip_rect: rect_from_egui(clipped.clip_rect),
             })
@@ -91,21 +113,21 @@ fn rect_from_egui(rect: egui::Rect) -> Option<Rect> {
         })
 }
 
-fn shape_kind(shape: &egui::epaint::Shape) -> &'static str {
+fn shape_kind(shape: &egui::epaint::Shape) -> EguiPaintKind {
     use egui::epaint::Shape;
 
     match shape {
-        Shape::Noop => "noop",
-        Shape::Vec(_) => "group",
-        Shape::Circle(_) => "circle",
-        Shape::Ellipse(_) => "ellipse",
-        Shape::LineSegment { .. } => "line_segment",
-        Shape::Path(_) => "path",
-        Shape::Rect(_) => "rect",
-        Shape::Text(_) => "text",
-        Shape::Mesh(_) => "mesh",
-        Shape::QuadraticBezier(_) => "quadratic_bezier",
-        Shape::CubicBezier(_) => "cubic_bezier",
-        Shape::Callback(_) => "callback",
+        Shape::Noop => EguiPaintKind::Noop,
+        Shape::Vec(_) => EguiPaintKind::Group,
+        Shape::Circle(_) => EguiPaintKind::Circle,
+        Shape::Ellipse(_) => EguiPaintKind::Ellipse,
+        Shape::LineSegment { .. } => EguiPaintKind::LineSegment,
+        Shape::Path(_) => EguiPaintKind::Path,
+        Shape::Rect(_) => EguiPaintKind::Rect,
+        Shape::Text(_) => EguiPaintKind::Text,
+        Shape::Mesh(_) => EguiPaintKind::Mesh,
+        Shape::QuadraticBezier(_) => EguiPaintKind::QuadraticBezier,
+        Shape::CubicBezier(_) => EguiPaintKind::CubicBezier,
+        Shape::Callback(_) => EguiPaintKind::Callback,
     }
 }
