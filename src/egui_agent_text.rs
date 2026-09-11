@@ -70,6 +70,21 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
             None => write!(output, " clip=unbounded"),
         }
         .expect("writing to String cannot fail");
+
+        if object.bounds.is_some() {
+            write!(
+                output,
+                " visible_fraction={} visible_fraction_evidence=derived_bbox_clip",
+                object.visible_fraction(),
+            )
+            .expect("writing to String cannot fail");
+            if let Some(visible) = object.visible_bounds() {
+                write!(output, " visible_bounds={}", rect(visible))
+                    .expect("writing to String cannot fail");
+            } else {
+                write!(output, " visible_bounds=none").expect("writing to String cannot fail");
+            }
+        }
         output.push('\n');
     }
 
