@@ -6,7 +6,9 @@ fn canvas_showcase_keeps_four_explicit_authored_binding_keys() {
     let source = fs::read_to_string(path).expect("read showcase source");
 
     for binding_id in ["outline", "handle", "ring", "center"] {
-        let needle = format!("object.add_shape_with_id(\n                    &painter,\n                    \"{binding_id}\"");
+        let needle = format!(
+            "object.add_shape_with_id(\n                    &painter,\n                    \"{binding_id}\""
+        );
         assert!(
             source.contains(&needle),
             "showcase Canvas must keep authored binding key {binding_id:?}"
