@@ -114,7 +114,10 @@ fn screenshot_command_writes_exact_peer_raster_bytes() {
         .expect("run screenshot CLI");
 
     assert!(output.status.success(), "stderr: {}", stderr(&output));
-    assert_eq!(fs::read(&path).expect("read screenshot output"), expected_bytes);
+    assert_eq!(
+        fs::read(&path).expect("read screenshot output"),
+        expected_bytes
+    );
     assert_eq!(
         String::from_utf8(output.stdout).expect("stdout utf8"),
         format!("saved {path_arg} 2x1\n")
