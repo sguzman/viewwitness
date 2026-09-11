@@ -19,7 +19,12 @@ pub const DEFAULT_EGUI_CAPTURE_ADDR: &str = "127.0.0.1:5721";
 pub const EGUI_CAPTURE_PROTOCOL_MAGIC: &str = "VIEWWITNESS-EGUI-CAPTURE";
 
 /// Version of the ViewWitness-owned exact capture protocol.
-pub const EGUI_CAPTURE_PROTOCOL_VERSION: u32 = 1;
+///
+/// Version 2 changes the serialized authored-paint envelope from one logical
+/// object per paint handle to one logical object containing an explicit list of
+/// observed paint bindings. Clients and servers reject mismatched handshakes
+/// rather than silently interpreting incompatible JSON shapes.
+pub const EGUI_CAPTURE_PROTOCOL_VERSION: u32 = 2;
 
 /// Defensive upper bound for one serialized correlated capture response.
 pub const MAX_EGUI_CAPTURE_MESSAGE_BYTES: usize = 64 * 1024 * 1024;
