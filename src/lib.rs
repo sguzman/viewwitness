@@ -44,8 +44,9 @@ pub use egui_capture_transport::{
 };
 #[cfg(feature = "egui")]
 pub use egui_diff::{
-    EguiAuthoredDiff, EguiAuthoredExecutionHandleChange, EguiAuthoredIdAmbiguity,
-    EguiAuthoredObjectChange, EguiCorrelatedDiff, diff_correlated_captures,
+    EguiAuthoredBindingIdAmbiguity, EguiAuthoredDiff, EguiAuthoredExecutionHandleChange,
+    EguiAuthoredIdAmbiguity, EguiAuthoredObjectChange, EguiCorrelatedDiff,
+    diff_correlated_captures,
 };
 #[cfg(feature = "egui")]
 pub use egui_frame_probe::{EguiCorrelatedCapture, EguiFrameEvidence, EguiFrameProbe};
