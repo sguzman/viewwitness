@@ -109,9 +109,7 @@ fn diff_exact_command(args: Vec<String>) -> io::Result<()> {
         OutputMode::Agent => print!("{}", correlated_diff_to_agent_text(&diff)),
         OutputMode::Yaml => {
             let yaml = serde_yaml_ng::to_string(&diff).map_err(|error| {
-                io::Error::other(format!(
-                    "failed to serialize correlated diff YAML: {error}"
-                ))
+                io::Error::other(format!("failed to serialize correlated diff YAML: {error}"))
             })?;
             print!("{yaml}");
         }
@@ -251,11 +249,10 @@ fn screenshot_command(args: Vec<String>) -> io::Result<()> {
             }
             addr = value.to_owned();
         } else if let Some(value) = arg.strip_prefix("--scale=") {
-            scale = Some(
-                value
-                    .parse::<f32>()
-                    .map_err(|error| invalid(format!("invalid --scale value {value:?}: {error}")))?,
-            );
+            scale =
+                Some(value.parse::<f32>().map_err(|error| {
+                    invalid(format!("invalid --scale value {value:?}: {error}"))
+                })?);
         } else if arg.starts_with('-') {
             return Err(invalid(format!("unknown screenshot option {arg:?}")));
         } else if output_path.replace(arg).is_some() {
@@ -325,8 +322,11 @@ fn load_witness(path: &str) -> io::Result<Witness> {
 fn load_correlated_capture(path: &str) -> io::Result<viewwitness::EguiCorrelatedCapture> {
     let source = fs::read_to_string(path)
         .map_err(|error| io::Error::new(error.kind(), format!("failed to read {path}: {error}")))?;
-    serde_yaml_ng::from_str(&source)
-        .map_err(|error| invalid(format!("failed to parse correlated capture {path}: {error}")))
+    serde_yaml_ng::from_str(&source).map_err(|error| {
+        invalid(format!(
+            "failed to parse correlated capture {path}: {error}"
+        ))
+    })
 }
 
 fn validate_witness(witness: &Witness) -> io::Result<()> {
