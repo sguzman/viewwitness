@@ -1,5 +1,7 @@
 use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{EguiPaintObservation, paint_observations_from_egui_output};
 
 /// One renderer-evidence frame copied from egui's public output boundary.
@@ -8,7 +10,10 @@ use crate::{EguiPaintObservation, paint_observations_from_egui_output};
 /// `Witness` state. `pass_nr` is egui's cumulative pass number for the active
 /// viewport; `viewport_id` is the raw egui viewport identity and disambiguates
 /// independent viewport pass streams without carrying framework wrapper state.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Serialization exists for worker-side transport only. `output_hook` itself
+/// never serializes a frame.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EguiPaintFrame {
     pub viewport_id: u64,
     pub pass_nr: u64,
