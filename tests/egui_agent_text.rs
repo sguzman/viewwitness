@@ -88,7 +88,12 @@ relations: []
                 width: 30.0,
                 height: 20.0,
             }),
-            clip_rect: None,
+            clip_rect: Some(Rect {
+                x: 20.0,
+                y: 20.0,
+                width: 15.0,
+                height: 20.0,
+            }),
         }],
     };
 
@@ -97,7 +102,7 @@ relations: []
         "egui-correlated request=7 viewport_id=2 pass=9 viewport_rect=[0,0,100,50] paint_count=2 authored_count=1 correlation=same_full_output\n",
         "view version=\"0\" source=\"egui\" viewport=[100,50,1] frame=9\n",
         "node id=\"ak:1\" role=\"button\" name=\"Apply\" bounds=[10,10,20,10]\n",
-        "authored-object id=\"canvas:node\" role=\"diagram_node\" name=\"Node\" semantic_evidence=\"intended\" binding_evidence=\"observed\" layer_order=\"background\" layer_id=42 shape_index=3 verified=true kind=\"rect\" bounds=[20,20,30,20] clip=unbounded\n",
+        "authored-object id=\"canvas:node\" role=\"diagram_node\" name=\"Node\" semantic_evidence=\"intended\" binding_evidence=\"observed\" layer_order=\"background\" layer_id=42 shape_index=3 verified=true kind=\"rect\" bounds=[20,20,30,20] clip=[20,20,15,20] visible_fraction=0.5 visible_fraction_evidence=derived_bbox_clip visible_bounds=[20,20,15,20]\n",
         "paint order=1 kind=\"circle\" bounds=[0,0,10,10] clip=[0,0,5,10] visible_fraction=0.5 visible_fraction_evidence=derived_bbox_clip visible_bounds=[0,0,5,10]\n",
         "paint order=2 kind=\"rect\" bounds=[0,0,10,10] clip=unbounded visible_fraction=1 visible_fraction_evidence=derived_bbox_clip visible_bounds=[0,0,10,10]\n",
     );
