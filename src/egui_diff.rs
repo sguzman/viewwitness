@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::{
     EguiAuthoredPaintBinding, EguiAuthoredPaintObject, EguiCorrelatedCapture, FieldChange,
@@ -48,8 +47,14 @@ pub struct EguiAuthoredDiff {
     pub objects_changed: Vec<EguiAuthoredObjectChange>,
     #[serde(default)]
     pub ambiguous_ids: Vec<EguiAuthoredIdAmbiguity>,
-    /// Non-material layer-local slot churn for uniquely matched objects whose
-    /// authored semantics and binding material remained otherwise unchanged.
+    /// Authored sub-binding IDs that cannot be trusted as continuity keys because
+    /// they are duplicated within a uniquely matched logical object on at least
+    /// one side of the comparison.
+    #[serde(default)]
+    pub binding_ambiguities: Vec<EguiAuthoredBindingIdAmbiguity>,
+    /// Non-material layer-local slot churn for uniquely matched object/binding
+    /// identities whose authored semantics and material binding state remained
+    /// otherwise unchanged.
     #[serde(default)]
     pub execution_handle_churn: Vec<EguiAuthoredExecutionHandleChange>,
 }
@@ -61,23 +66,24 @@ impl EguiAuthoredDiff {
             && self.objects_removed.is_empty()
             && self.objects_changed.is_empty()
             && self.ambiguous_ids.is_empty()
+            && self.binding_ambiguities.is_empty()
     }
 }
 
 /// Material field changes for one uniquely matched authored object.
 ///
-/// `bindings` is compared as an authored ordered collection of material binding
-/// snapshots with `shape_index` intentionally excluded. ViewWitness therefore
-/// reports renderer-slot churn separately instead of laundering it into object
-/// identity or material visual change.
+/// Binding comparison is identity-aware. Uniquely keyed bindings are compared by
+/// their authored binding ID independent of submission order. Unkeyed bindings
+/// retain conservative relative-ordinal comparison. `shape_index` is intentionally
+/// excluded from material state and reported separately as execution-handle churn.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EguiAuthoredObjectChange {
     pub id: String,
     pub fields: BTreeMap<String, FieldChange>,
 }
 
-/// An authored ID that cannot be used as an automatic continuity key because it
-/// is duplicated on at least one side of the comparison.
+/// An authored object ID that cannot be used as an automatic continuity key
+/// because it is duplicated on at least one side of the comparison.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EguiAuthoredIdAmbiguity {
     pub id: String,
@@ -85,12 +91,30 @@ pub struct EguiAuthoredIdAmbiguity {
     pub after_count: usize,
 }
 
-/// Change in a layer-local egui slot for one material-equivalent binding ordinal.
+/// An authored binding ID that cannot be used as an automatic sub-object
+/// continuity key because it is duplicated within its logical object on at least
+/// one side of the comparison.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EguiAuthoredBindingIdAmbiguity {
+    pub object_id: String,
+    pub binding_id: String,
+    pub before_count: usize,
+    pub after_count: usize,
+}
+
+/// Change in a layer-local egui slot for one material-equivalent authored binding.
+///
+/// `authored_binding_id` is present when continuity came from an explicit
+/// application-authored sub-binding key. `binding_ordinal` always records the
+/// binding's before-side vector position as diagnostic context; for unkeyed
+/// bindings it is also the conservative matching basis.
 ///
 /// This is diagnostic execution evidence, not an object-identity change.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EguiAuthoredExecutionHandleChange {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authored_binding_id: Option<String>,
     pub binding_ordinal: usize,
     pub before_shape_index: usize,
     pub after_shape_index: usize,
@@ -121,14 +145,27 @@ impl From<&EguiAuthoredPaintBinding> for MaterialBinding {
     }
 }
 
+/// Order-normalized material view of one object's bindings.
+///
+/// Explicitly keyed bindings are sorted by authored binding ID. Unkeyed bindings
+/// remain in their relative submission order so legacy captures keep the
+/// conservative ordinal semantics they had before binding IDs existed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct MaterialBindings {
+    keyed: BTreeMap<String, MaterialBinding>,
+    unkeyed: Vec<MaterialBinding>,
+}
+
 /// Compare two exact correlated captures without pretending renderer slots are
 /// durable object identity.
 ///
 /// Authored object IDs are used as continuity evidence only when an ID appears
-/// exactly once on both sides. Any duplicate ID becomes explicit ambiguity.
-/// Layer-local `ShapeIdx` values are excluded from material binding comparison;
-/// if material state is otherwise identical, ordinal slot churn is surfaced in
-/// `execution_handle_churn` instead.
+/// exactly once on both sides. Within such an object, an authored binding ID is
+/// used only when it is unique within that object on both sides. Duplicate
+/// object or binding IDs become explicit ambiguity instead of heuristic matching.
+/// Unkeyed bindings retain relative-ordinal matching. Layer-local `ShapeIdx`
+/// values are excluded from material binding comparison and surfaced as
+/// diagnostic execution churn when everything else remains equivalent.
 #[must_use]
 pub fn diff_correlated_captures(
     before: &EguiCorrelatedCapture,
@@ -160,6 +197,7 @@ fn diff_authored_objects(
     let mut objects_removed = Vec::new();
     let mut objects_changed = Vec::new();
     let mut ambiguous_ids = Vec::new();
+    let mut binding_ambiguities = Vec::new();
     let mut execution_handle_churn = Vec::new();
 
     for id in ids {
@@ -181,6 +219,21 @@ fn diff_authored_objects(
             (Some(before_object), Some(after_object)) => {
                 let before_object = *before_object;
                 let after_object = *after_object;
+                let object_binding_ambiguities =
+                    binding_id_ambiguities(before_object, after_object);
+
+                if !object_binding_ambiguities.is_empty() {
+                    binding_ambiguities.extend(object_binding_ambiguities);
+                    let fields = authored_nonbinding_fields(before_object, after_object);
+                    if !fields.is_empty() {
+                        objects_changed.push(EguiAuthoredObjectChange {
+                            id: id.to_owned(),
+                            fields,
+                        });
+                    }
+                    continue;
+                }
+
                 let fields = authored_object_fields(before_object, after_object);
                 if fields.is_empty() {
                     execution_handle_churn.extend(handle_churn(before_object, after_object));
@@ -200,6 +253,7 @@ fn diff_authored_objects(
         objects_removed,
         objects_changed,
         ambiguous_ids,
+        binding_ambiguities,
         execution_handle_churn,
     }
 }
@@ -218,6 +272,17 @@ fn authored_object_fields(
     before: &EguiAuthoredPaintObject,
     after: &EguiAuthoredPaintObject,
 ) -> BTreeMap<String, FieldChange> {
+    let mut fields = authored_nonbinding_fields(before, after);
+    let before_bindings = material_bindings(before);
+    let after_bindings = material_bindings(after);
+    field_change(&mut fields, "bindings", &before_bindings, &after_bindings);
+    fields
+}
+
+fn authored_nonbinding_fields(
+    before: &EguiAuthoredPaintObject,
+    after: &EguiAuthoredPaintObject,
+) -> BTreeMap<String, FieldChange> {
     let mut fields = BTreeMap::new();
     field_change(&mut fields, "role", &before.role, &after.role);
     field_change(&mut fields, "name", &before.name, &after.name);
@@ -227,11 +292,59 @@ fn authored_object_fields(
         &before.semantic_evidence,
         &after.semantic_evidence,
     );
-
-    let before_bindings: Vec<MaterialBinding> = before.bindings.iter().map(Into::into).collect();
-    let after_bindings: Vec<MaterialBinding> = after.bindings.iter().map(Into::into).collect();
-    field_change(&mut fields, "bindings", &before_bindings, &after_bindings);
     fields
+}
+
+fn material_bindings(object: &EguiAuthoredPaintObject) -> MaterialBindings {
+    let mut keyed = BTreeMap::new();
+    let mut unkeyed = Vec::new();
+
+    for binding in &object.bindings {
+        match &binding.authored_binding_id {
+            Some(id) => {
+                keyed.insert(id.clone(), MaterialBinding::from(binding));
+            }
+            None => unkeyed.push(MaterialBinding::from(binding)),
+        }
+    }
+
+    MaterialBindings { keyed, unkeyed }
+}
+
+fn binding_id_ambiguities(
+    before: &EguiAuthoredPaintObject,
+    after: &EguiAuthoredPaintObject,
+) -> Vec<EguiAuthoredBindingIdAmbiguity> {
+    let before_counts = binding_id_counts(before);
+    let after_counts = binding_id_counts(after);
+    let ids: BTreeSet<&str> = before_counts
+        .keys()
+        .chain(after_counts.keys())
+        .copied()
+        .collect();
+
+    ids.into_iter()
+        .filter_map(|binding_id| {
+            let before_count = before_counts.get(binding_id).copied().unwrap_or(0);
+            let after_count = after_counts.get(binding_id).copied().unwrap_or(0);
+            (before_count > 1 || after_count > 1).then(|| EguiAuthoredBindingIdAmbiguity {
+                object_id: before.id.clone(),
+                binding_id: binding_id.to_owned(),
+                before_count,
+                after_count,
+            })
+        })
+        .collect()
+}
+
+fn binding_id_counts(object: &EguiAuthoredPaintObject) -> BTreeMap<&str, usize> {
+    let mut counts = BTreeMap::new();
+    for binding in &object.bindings {
+        if let Some(id) = binding.authored_binding_id.as_deref() {
+            *counts.entry(id).or_insert(0) += 1;
+        }
+    }
+    counts
 }
 
 fn field_change<T: Serialize + PartialEq>(
@@ -256,24 +369,74 @@ fn handle_churn(
     before: &EguiAuthoredPaintObject,
     after: &EguiAuthoredPaintObject,
 ) -> Vec<EguiAuthoredExecutionHandleChange> {
-    if before.bindings.len() != after.bindings.len() {
-        return Vec::new();
+    let mut churn = Vec::new();
+
+    let before_keyed = keyed_bindings(before);
+    let after_keyed = keyed_bindings(after);
+    for (binding_id, (before_ordinal, before_binding)) in before_keyed {
+        let Some((_, after_binding)) = after_keyed.get(binding_id) else {
+            continue;
+        };
+        if before_binding.shape_index != after_binding.shape_index {
+            churn.push(EguiAuthoredExecutionHandleChange {
+                id: before.id.clone(),
+                authored_binding_id: Some(binding_id.to_owned()),
+                binding_ordinal: before_ordinal,
+                before_shape_index: before_binding.shape_index,
+                after_shape_index: after_binding.shape_index,
+            });
+        }
     }
 
-    before
+    let before_unkeyed: Vec<_> = before
         .bindings
         .iter()
-        .zip(&after.bindings)
         .enumerate()
-        .filter_map(|(binding_ordinal, (before_binding, after_binding))| {
-            (before_binding.shape_index != after_binding.shape_index).then(|| {
-                EguiAuthoredExecutionHandleChange {
-                    id: before.id.clone(),
-                    binding_ordinal,
-                    before_shape_index: before_binding.shape_index,
-                    after_shape_index: after_binding.shape_index,
-                }
-            })
+        .filter(|(_, binding)| binding.authored_binding_id.is_none())
+        .collect();
+    let after_unkeyed: Vec<_> = after
+        .bindings
+        .iter()
+        .enumerate()
+        .filter(|(_, binding)| binding.authored_binding_id.is_none())
+        .collect();
+
+    for ((before_ordinal, before_binding), (_, after_binding)) in
+        before_unkeyed.into_iter().zip(after_unkeyed)
+    {
+        if before_binding.shape_index != after_binding.shape_index {
+            churn.push(EguiAuthoredExecutionHandleChange {
+                id: before.id.clone(),
+                authored_binding_id: None,
+                binding_ordinal: before_ordinal,
+                before_shape_index: before_binding.shape_index,
+                after_shape_index: after_binding.shape_index,
+            });
+        }
+    }
+
+    churn.sort_by(|a, b| {
+        (&a.id, &a.authored_binding_id, a.binding_ordinal).cmp(&(
+            &b.id,
+            &b.authored_binding_id,
+            b.binding_ordinal,
+        ))
+    });
+    churn
+}
+
+fn keyed_bindings(
+    object: &EguiAuthoredPaintObject,
+) -> BTreeMap<&str, (usize, &EguiAuthoredPaintBinding)> {
+    object
+        .bindings
+        .iter()
+        .enumerate()
+        .filter_map(|(ordinal, binding)| {
+            binding
+                .authored_binding_id
+                .as_deref()
+                .map(|id| (id, (ordinal, binding)))
         })
         .collect()
 }
