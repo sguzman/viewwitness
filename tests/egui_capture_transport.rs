@@ -126,6 +126,23 @@ fn observer_rejects_unrelated_protocol_handshake() {
     fake.join().expect("fake server thread exits");
 }
 
+#[test]
+fn observer_rejects_previous_capture_protocol_version() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind old-version server");
+    let addr = listener.local_addr().expect("old-version server address");
+
+    let fake = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept old-version client");
+        writeln!(stream, "VIEWWITNESS-EGUI-CAPTURE 1").expect("write v1 handshake");
+    });
+
+    let error = EguiCaptureObserver::connect(&addr.to_string())
+        .expect_err("v2 observer must reject the incompatible v1 envelope");
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    assert!(error.to_string().contains("VIEWWITNESS-EGUI-CAPTURE 2"));
+    fake.join().expect("old-version server thread exits");
+}
+
 fn test_input() -> egui::RawInput {
     egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
