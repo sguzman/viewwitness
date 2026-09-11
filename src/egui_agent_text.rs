@@ -5,19 +5,20 @@ use serde::Serialize;
 use crate::{EguiCorrelatedCapture, Rect, to_agent_text};
 
 /// Project an exact correlated egui capture into deterministic agent-oriented
-/// text without collapsing semantic nodes and paint submissions into a guessed
-/// identity mapping.
+/// text without collapsing semantic nodes, authored custom-paint objects, and
+/// generic renderer submissions into guessed identity mappings.
 ///
 /// The canonical semantic witness is emitted using the ordinary ViewWitness
-/// agent projection. Renderer evidence then follows as one ordered line per
-/// paint submission. `visible_fraction` is explicitly labeled as a derived
-/// bounding-box/clip measure rather than exact raster coverage.
+/// agent projection. Explicit application-authored custom paint bindings follow,
+/// then renderer evidence as one ordered line per generic paint submission.
+/// `visible_fraction` is explicitly labeled as a derived bounding-box/clip
+/// measure rather than exact raster coverage.
 #[must_use]
 pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> String {
     let mut output = String::new();
     writeln!(
         output,
-        "egui-correlated request={} viewport_id={} pass={} viewport_rect=[{},{},{},{}] paint_count={} correlation=same_full_output",
+        "egui-correlated request={} viewport_id={} pass={} viewport_rect=[{},{},{},{}] paint_count={} authored_count={} correlation=same_full_output",
         capture.request_id,
         capture.viewport_id,
         capture.pass_nr,
@@ -26,10 +27,51 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
         capture.viewport_rect.width,
         capture.viewport_rect.height,
         capture.paint.len(),
+        capture.authored_objects.len(),
     )
     .expect("writing to String cannot fail");
 
     output.push_str(&to_agent_text(&capture.witness));
+
+    let mut authored: Vec<_> = capture.authored_objects.iter().collect();
+    authored.sort_by(|a, b| {
+        (&a.id, a.layer_id, a.shape_index).cmp(&(&b.id, b.layer_id, b.shape_index))
+    });
+    for object in authored {
+        write!(
+            output,
+            "authored-object id={} role={}",
+            json(&object.id),
+            json(&object.role),
+        )
+        .expect("writing to String cannot fail");
+        if let Some(name) = &object.name {
+            write!(output, " name={}", json(name)).expect("writing to String cannot fail");
+        }
+        write!(
+            output,
+            " semantic_evidence={} binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
+            json(&object.semantic_evidence),
+            json(&object.binding_evidence),
+            json(&object.layer_order),
+            object.layer_id,
+            object.shape_index,
+            object.verified_at_end_pass,
+        )
+        .expect("writing to String cannot fail");
+        if let Some(kind) = object.kind {
+            write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");
+        }
+        if let Some(bounds) = object.bounds {
+            write!(output, " bounds={}", rect(bounds)).expect("writing to String cannot fail");
+        }
+        match object.clip_rect {
+            Some(clip) => write!(output, " clip={}", rect(clip)),
+            None => write!(output, " clip=unbounded"),
+        }
+        .expect("writing to String cannot fail");
+        output.push('\n');
+    }
 
     let mut paint: Vec<_> = capture.paint.iter().collect();
     paint.sort_by_key(|observation| observation.order);
