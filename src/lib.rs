@@ -16,6 +16,8 @@ mod egui_frame_probe;
 #[cfg(feature = "egui")]
 mod egui_paint;
 #[cfg(feature = "egui")]
+mod egui_paint_annotation;
+#[cfg(feature = "egui")]
 mod egui_paint_reporter;
 #[cfg(feature = "egui")]
 mod egui_paint_transport;
@@ -42,6 +44,10 @@ pub use egui_capture_transport::{
 pub use egui_frame_probe::{EguiCorrelatedCapture, EguiFrameEvidence, EguiFrameProbe};
 #[cfg(feature = "egui")]
 pub use egui_paint::{EguiPaintKind, EguiPaintObservation, paint_observations_from_egui_output};
+#[cfg(feature = "egui")]
+pub use egui_paint_annotation::{
+    EguiAuthoredPaintObject, EguiLayerOrder, EguiPaintAnnotator, EguiPaintObjectDescriptor,
+};
 #[cfg(feature = "egui")]
 pub use egui_paint_reporter::{EguiPaintFrame, EguiPaintReporter};
 #[cfg(feature = "egui")]
