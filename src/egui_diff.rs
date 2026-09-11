@@ -230,12 +230,7 @@ fn authored_object_fields(
 
     let before_bindings: Vec<MaterialBinding> = before.bindings.iter().map(Into::into).collect();
     let after_bindings: Vec<MaterialBinding> = after.bindings.iter().map(Into::into).collect();
-    field_change(
-        &mut fields,
-        "bindings",
-        &before_bindings,
-        &after_bindings,
-    );
+    field_change(&mut fields, "bindings", &before_bindings, &after_bindings);
     fields
 }
 
