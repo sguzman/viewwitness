@@ -10,8 +10,9 @@ use crate::{EguiPaintKind, Rect};
 
 /// Application-declared semantics for one custom-painted object.
 ///
-/// These fields are authored/intended semantics. The paint binding produced by
-/// [`EguiPaintAnnotator`] is separate observed execution evidence.
+/// These fields are authored/intended semantics. Concrete renderer bindings are
+/// recorded separately so one logical object can intentionally own more than
+/// one egui paint submission without duplicating its identity metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EguiPaintObjectDescriptor {
     pub id: String,
@@ -59,20 +60,15 @@ impl From<Order> for EguiLayerOrder {
     }
 }
 
-/// One application-authored object bound to the concrete egui paint slot that
-/// the application used for it during the captured pass.
+/// One observed binding between an authored logical object and a concrete egui
+/// paint slot used during the captured pass.
 ///
-/// `semantic_evidence` is `intended` because object identity/name/role were
-/// declared by the application. `binding_evidence` is `observed` because the
-/// annotator records the actual `LayerId + ShapeIdx` returned by egui and the
-/// frame probe verifies that slot against the final paint list at end-of-pass.
+/// `binding_evidence` is `observed` because ViewWitness records the actual
+/// `LayerId + ShapeIdx` returned by egui and verifies that slot against the final
+/// paint list at end-of-pass. Bounds, clip, and kind are likewise read from that
+/// final slot instead of remembered from the original submission call.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EguiAuthoredPaintObject {
-    pub id: String,
-    pub role: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    pub semantic_evidence: String,
+pub struct EguiAuthoredPaintBinding {
     pub binding_evidence: String,
     pub layer_order: EguiLayerOrder,
     pub layer_id: u64,
@@ -86,7 +82,7 @@ pub struct EguiAuthoredPaintObject {
     pub clip_rect: Option<Rect>,
 }
 
-impl EguiAuthoredPaintObject {
+impl EguiAuthoredPaintBinding {
     /// Intersect the final observed visual bounds with the final observed finite
     /// clip rectangle for this verified paint slot.
     ///
@@ -101,8 +97,8 @@ impl EguiAuthoredPaintObject {
         }
     }
 
-    /// Fraction of the authored object's final axis-aligned visual bounds that
-    /// survives the final observed clip rectangle.
+    /// Fraction of this binding's final axis-aligned visual bounds that survives
+    /// the final observed clip rectangle.
     ///
     /// Like [`crate::EguiPaintObservation::visible_fraction`], this is derived
     /// bounding-box evidence, not exact painted-pixel or alpha coverage.
@@ -121,20 +117,80 @@ impl EguiAuthoredPaintObject {
     }
 }
 
+/// One application-authored logical custom-paint object.
+///
+/// `semantic_evidence` is `intended` because identity/name/role are declared by
+/// the application. Each entry in `bindings` is separate observed execution
+/// evidence. ViewWitness does not infer object grouping from duplicate IDs or
+/// coincident geometry: multi-shape membership exists only when the application
+/// explicitly groups the paint submissions through [`EguiPaintAnnotator::paint_object`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EguiAuthoredPaintObject {
+    pub id: String,
+    pub role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub semantic_evidence: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bindings: Vec<EguiAuthoredPaintBinding>,
+}
+
 #[derive(Debug, Clone)]
-pub(crate) struct PendingPaintObject {
-    pub descriptor: EguiPaintObjectDescriptor,
+pub(crate) struct PendingPaintBinding {
     pub layer_id: LayerId,
     pub shape_index: ShapeIdx,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct PendingPaintObject {
+    pub descriptor: EguiPaintObjectDescriptor,
+    pub bindings: Vec<PendingPaintBinding>,
+}
+
 pub(crate) type PendingPaintObjects = Arc<Mutex<Vec<PendingPaintObject>>>;
+
+/// Pass-local scope for explicitly grouping several egui paint handles into one
+/// application-authored logical object.
+///
+/// The scope is created by [`EguiPaintAnnotator::paint_object`]. On ordinary
+/// unrequested frames it still performs painting normally but does not allocate
+/// or retain binding bookkeeping.
+pub struct EguiPaintObjectScope {
+    bindings: Option<Vec<PendingPaintBinding>>,
+}
+
+impl EguiPaintObjectScope {
+    /// Paint one shape and include its concrete egui handle in this logical
+    /// object's explicit binding set when exact capture is active.
+    pub fn add_shape(
+        &mut self,
+        painter: &Painter,
+        shape: impl Into<egui::epaint::Shape>,
+    ) -> ShapeIdx {
+        let shape_index = painter.add(shape);
+        self.bind_shape(painter, shape_index);
+        shape_index
+    }
+
+    /// Include an already-created shape handle in this logical object's binding
+    /// set when exact capture is active.
+    pub fn bind_shape(&mut self, painter: &Painter, shape_index: ShapeIdx) {
+        let Some(bindings) = &mut self.bindings else {
+            return;
+        };
+        bindings.push(PendingPaintBinding {
+            layer_id: painter.layer_id(),
+            shape_index,
+        });
+    }
+}
 
 /// Lightweight application-side helper for explicitly identifying custom paint.
 ///
 /// Painting always happens normally. Annotation bookkeeping is activated only
 /// for a pass in which the exact frame probe has an outstanding capture request,
-/// so ordinary frames pay only one atomic load per annotated `add_shape` call.
+/// so ordinary frames pay only an atomic load for an annotated logical object or
+/// singular `add_shape` call.
 #[derive(Clone)]
 pub struct EguiPaintAnnotator {
     active_request: Arc<AtomicU64>,
@@ -149,8 +205,40 @@ impl EguiPaintAnnotator {
         }
     }
 
+    /// Paint one application-authored logical object that may consist of several
+    /// concrete egui paint submissions.
+    ///
+    /// Object membership is explicit through this closure. ViewWitness never
+    /// later groups independent annotations merely because they repeat an ID or
+    /// overlap geometrically. Objects that emit no bindings are omitted from
+    /// paint evidence rather than being reported as if they rendered.
+    pub fn paint_object<R>(
+        &self,
+        descriptor: EguiPaintObjectDescriptor,
+        paint: impl FnOnce(&mut EguiPaintObjectScope) -> R,
+    ) -> R {
+        let active = self.active_request.load(Ordering::Acquire) != 0;
+        let mut object = EguiPaintObjectScope {
+            bindings: active.then(Vec::new),
+        };
+        let result = paint(&mut object);
+
+        if let Some(bindings) = object.bindings
+            && !bindings.is_empty()
+        {
+            lock_pending(&self.pending).push(PendingPaintObject {
+                descriptor,
+                bindings,
+            });
+        }
+
+        result
+    }
+
     /// Paint one custom shape and, during an exact capture pass, bind the
     /// supplied authored object descriptor to egui's returned paint handle.
+    ///
+    /// This remains the convenient one-binding form of [`Self::paint_object`].
     pub fn add_shape(
         &self,
         painter: &Painter,
@@ -162,7 +250,7 @@ impl EguiPaintAnnotator {
         shape_index
     }
 
-    /// Bind authored object semantics to an already-created paint handle.
+    /// Bind one authored logical object to an already-created paint handle.
     ///
     /// The handle is verified against egui's final paint list at end-of-pass;
     /// invalid or reset handles remain explicit rather than being rematched by
@@ -177,11 +265,12 @@ impl EguiPaintAnnotator {
             return;
         }
 
-        let mut pending = lock_pending(&self.pending);
-        pending.push(PendingPaintObject {
+        lock_pending(&self.pending).push(PendingPaintObject {
             descriptor,
-            layer_id: painter.layer_id(),
-            shape_index,
+            bindings: vec![PendingPaintBinding {
+                layer_id: painter.layer_id(),
+                shape_index,
+            }],
         });
     }
 }
@@ -202,43 +291,51 @@ pub(crate) fn resolve_pending_paint_objects(
 
     pending
         .into_iter()
-        .map(|pending| {
-            let resolved = ctx.graphics(|graphics| {
-                graphics.get(pending.layer_id).and_then(|paint_list| {
-                    paint_list
-                        .all_entries()
-                        .nth(pending.shape_index.0)
-                        .map(|clipped| {
-                            (
-                                shape_kind(&clipped.shape),
-                                rect_from_egui(clipped.shape.visual_bounding_rect()),
-                                rect_from_egui(clipped.clip_rect),
-                            )
-                        })
-                })
-            });
-
-            let (verified_at_end_pass, kind, bounds, clip_rect) = match resolved {
-                Some((kind, bounds, clip_rect)) => (true, Some(kind), bounds, clip_rect),
-                None => (false, None, None, None),
-            };
-
-            EguiAuthoredPaintObject {
-                id: pending.descriptor.id,
-                role: pending.descriptor.role,
-                name: pending.descriptor.name,
-                semantic_evidence: "intended".into(),
-                binding_evidence: "observed".into(),
-                layer_order: pending.layer_id.order.into(),
-                layer_id: pending.layer_id.id.value(),
-                shape_index: pending.shape_index.0,
-                verified_at_end_pass,
-                kind,
-                bounds,
-                clip_rect,
-            }
+        .map(|pending| EguiAuthoredPaintObject {
+            id: pending.descriptor.id,
+            role: pending.descriptor.role,
+            name: pending.descriptor.name,
+            semantic_evidence: "intended".into(),
+            bindings: pending
+                .bindings
+                .into_iter()
+                .map(|binding| resolve_binding(ctx, binding))
+                .collect(),
         })
         .collect()
+}
+
+fn resolve_binding(ctx: &egui::Context, pending: PendingPaintBinding) -> EguiAuthoredPaintBinding {
+    let resolved = ctx.graphics(|graphics| {
+        graphics.get(pending.layer_id).and_then(|paint_list| {
+            paint_list
+                .all_entries()
+                .nth(pending.shape_index.0)
+                .map(|clipped| {
+                    (
+                        shape_kind(&clipped.shape),
+                        rect_from_egui(clipped.shape.visual_bounding_rect()),
+                        rect_from_egui(clipped.clip_rect),
+                    )
+                })
+        })
+    });
+
+    let (verified_at_end_pass, kind, bounds, clip_rect) = match resolved {
+        Some((kind, bounds, clip_rect)) => (true, Some(kind), bounds, clip_rect),
+        None => (false, None, None, None),
+    };
+
+    EguiAuthoredPaintBinding {
+        binding_evidence: "observed".into(),
+        layer_order: pending.layer_id.order.into(),
+        layer_id: pending.layer_id.id.value(),
+        shape_index: pending.shape_index.0,
+        verified_at_end_pass,
+        kind,
+        bounds,
+        clip_rect,
+    }
 }
 
 fn lock_pending(
