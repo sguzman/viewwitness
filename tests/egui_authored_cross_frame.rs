@@ -62,11 +62,7 @@ fn capture_object(
     let output = ctx.run_ui(test_input(), |ui| {
         let painter = ui.painter().clone();
         if insert_unrelated_prefix {
-            painter.add(RectShape::filled(
-                prefix,
-                0.0,
-                egui::Color32::DARK_GRAY,
-            ));
+            painter.add(RectShape::filled(prefix, 0.0, egui::Color32::DARK_GRAY));
         }
 
         annotator.add_shape(
