@@ -58,6 +58,7 @@ fn paint_probe_preserves_visual_bounds_clip_and_renderer_order() {
             height: 40.0,
         })
     );
+    assert!((clipped_rect.visible_fraction() - (2_000.0 / 7_000.0)).abs() < f32::EPSILON);
 
     let circle = observations
         .iter()
@@ -66,8 +67,10 @@ fn paint_probe_preserves_visual_bounds_clip_and_renderer_order() {
                 && observation.bounds.x == 190.0
                 && observation.bounds.y == 90.0
         })
-        .expect("later painted circle appears in renderer output");
+        .expect("later painted circle appears in renderer output even when fully clipped");
 
+    assert_eq!(circle.visible_bounds(), None);
+    assert_eq!(circle.visible_fraction(), 0.0);
     assert!(
         clipped_rect.order < circle.order,
         "flattened FullOutput shape order must preserve back-to-front paint order"
