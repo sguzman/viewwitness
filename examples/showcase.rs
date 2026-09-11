@@ -351,8 +351,8 @@ fn scrolling_page(ui: &mut egui::Ui, long_labels: bool) {
 fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
     use egui::epaint::{CircleShape, RectShape};
 
-    ui.heading("Custom-painted canvas — explicit identity pressure test");
-    ui.label("The rectangle and circle below are ordinary egui paint, but ViewWitness explicitly binds application-authored object identity to their real paint handles during exact capture.");
+    ui.heading("Custom-painted canvas — explicit multi-shape identity pressure test");
+    ui.label("Each visible canvas object below is application-authored identity bound to multiple real egui paint handles during exact capture. Labels remain unannotated generic paint.");
     ui.separator();
 
     let desired_size = egui::vec2(ui.available_width().min(620.0), 360.0);
@@ -367,36 +367,86 @@ fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
         rect.min + egui::vec2(310.0, 170.0),
         egui::vec2(190.0, 110.0),
     );
-
-    let first_shape = RectShape::stroke(
-        first,
-        8.0,
-        egui::Stroke::new(2.0, ui.visuals().widgets.active.fg_stroke.color),
-        egui::StrokeKind::Middle,
+    let rectangle_handle = egui::Rect::from_center_size(
+        first.left_top() + egui::vec2(8.0, 8.0),
+        egui::vec2(10.0, 10.0),
     );
-    let second_shape = CircleShape {
-        center: second.center(),
-        radius: 52.0,
-        fill: egui::Color32::TRANSPARENT,
-        stroke: egui::Stroke::new(2.0, ui.visuals().widgets.hovered.fg_stroke.color),
-    };
 
     if let Some(annotator) = annotator {
-        annotator.add_shape(
-            &painter,
+        annotator.paint_object(
             EguiPaintObjectDescriptor::new("showcase:painted-rectangle", "diagram_node")
                 .with_name("Painted rectangle"),
-            first_shape,
+            |object| {
+                object.add_shape(
+                    &painter,
+                    RectShape::stroke(
+                        first,
+                        8.0,
+                        egui::Stroke::new(2.0, ui.visuals().widgets.active.fg_stroke.color),
+                        egui::StrokeKind::Middle,
+                    ),
+                );
+                object.add_shape(
+                    &painter,
+                    RectShape::filled(
+                        rectangle_handle,
+                        2.0,
+                        ui.visuals().widgets.active.fg_stroke.color,
+                    ),
+                );
+            },
         );
-        annotator.add_shape(
-            &painter,
+        annotator.paint_object(
             EguiPaintObjectDescriptor::new("showcase:painted-circle", "diagram_node")
                 .with_name("Painted circle"),
-            second_shape,
+            |object| {
+                object.add_shape(
+                    &painter,
+                    CircleShape {
+                        center: second.center(),
+                        radius: 52.0,
+                        fill: egui::Color32::TRANSPARENT,
+                        stroke: egui::Stroke::new(
+                            2.0,
+                            ui.visuals().widgets.hovered.fg_stroke.color,
+                        ),
+                    },
+                );
+                object.add_shape(
+                    &painter,
+                    CircleShape {
+                        center: second.center(),
+                        radius: 4.0,
+                        fill: ui.visuals().widgets.hovered.fg_stroke.color,
+                        stroke: egui::Stroke::NONE,
+                    },
+                );
+            },
         );
     } else {
-        painter.add(first_shape);
-        painter.add(second_shape);
+        painter.add(RectShape::stroke(
+            first,
+            8.0,
+            egui::Stroke::new(2.0, ui.visuals().widgets.active.fg_stroke.color),
+            egui::StrokeKind::Middle,
+        ));
+        painter.add(RectShape::filled(
+            rectangle_handle,
+            2.0,
+            ui.visuals().widgets.active.fg_stroke.color,
+        ));
+        painter.add(CircleShape {
+            center: second.center(),
+            radius: 52.0,
+            fill: egui::Color32::TRANSPARENT,
+            stroke: egui::Stroke::new(2.0, ui.visuals().widgets.hovered.fg_stroke.color),
+        });
+        painter.add(CircleShape {
+            center: second.center(),
+            radius: 4.0,
+            fill: ui.visuals().widgets.hovered.fg_stroke.color,
+            stroke: egui::Stroke::NONE,
+        });
     }
 
     painter.text(
@@ -418,5 +468,5 @@ fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
         ui.ctx().request_repaint();
     }
 
-    ui.small("Exact capture should report two authored objects with intended semantics + observed verified paint handles. The background and labels remain generic paint, proving ViewWitness does not infer object identity for unannotated submissions.");
+    ui.small("Expected exact capture: two authored logical objects with four verified paint bindings. The canvas background and text labels remain generic renderer evidence, so ViewWitness still does not infer identity for unannotated submissions.");
 }
