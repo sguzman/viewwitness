@@ -1,7 +1,15 @@
+use std::{net::TcpListener, thread, time::Duration};
+
 use eframe::egui;
+use viewwitness::{
+    DEFAULT_EGUI_CAPTURE_ADDR, DEFAULT_EGUI_PAINT_ADDR, EguiFrameProbe, EguiPaintReporter,
+    run_egui_capture_server, run_egui_paint_server,
+};
 
 fn main() -> eframe::Result {
     let native_options = eframe::NativeOptions::default();
+    let paint_listener = bind_viewwitness_listener(DEFAULT_EGUI_PAINT_ADDR, "continuous paint");
+    let capture_listener = bind_viewwitness_listener(DEFAULT_EGUI_CAPTURE_ADDR, "exact capture");
 
     let mut page = ShowcasePage::Controls;
     let mut name = String::from("Cube");
@@ -17,7 +25,7 @@ fn main() -> eframe::Result {
     let mut long_labels = false;
     let mut busy = false;
 
-    eframe::run_ui_native("ViewWitness Showcase", native_options, move |ui, _frame| {
+    let ui_fun = move |ui: &mut egui::Ui, _frame: &mut eframe::Frame| {
         egui::Panel::top("showcase_top").show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.heading("ViewWitness Showcase");
@@ -46,7 +54,7 @@ fn main() -> eframe::Result {
                 ui.checkbox(&mut busy, "Busy / disabled state");
 
                 ui.separator();
-                ui.small("Run with EGUI_INSPECTION=1 when compiled with the showcase feature to expose eframe's local inspection endpoint.");
+                ui.small("ViewWitness paint and exact-capture services run on worker threads. Set EGUI_INSPECTION=1 to additionally expose eframe's upstream local inspection endpoint.");
             });
 
         egui::CentralPanel::default().show(ui, |ui| match page {
@@ -107,7 +115,79 @@ fn main() -> eframe::Result {
                     });
                 });
         }
-    })
+    };
+
+    eframe::run_native(
+        "ViewWitness Showcase",
+        native_options,
+        Box::new(move |cc| {
+            install_viewwitness_services(&cc.egui_ctx, paint_listener, capture_listener);
+            Ok(Box::new(ShowcaseClosure { ui_fun }))
+        }),
+    )
+}
+
+struct ShowcaseClosure<F> {
+    ui_fun: F,
+}
+
+impl<F> eframe::App for ShowcaseClosure<F>
+where
+    F: FnMut(&mut egui::Ui, &mut eframe::Frame) + 'static,
+{
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        (self.ui_fun)(ui, frame);
+    }
+}
+
+fn bind_viewwitness_listener(addr: &str, service: &str) -> Option<TcpListener> {
+    match TcpListener::bind(addr) {
+        Ok(listener) => {
+            eprintln!("ViewWitness showcase {service} endpoint: {addr}");
+            Some(listener)
+        }
+        Err(error) => {
+            eprintln!("ViewWitness showcase could not bind {service} endpoint {addr}: {error}");
+            None
+        }
+    }
+}
+
+fn install_viewwitness_services(
+    ctx: &egui::Context,
+    paint_listener: Option<TcpListener>,
+    capture_listener: Option<TcpListener>,
+) {
+    if let Some(listener) = paint_listener {
+        let (reporter, receiver) = EguiPaintReporter::channel(2);
+        ctx.add_plugin(reporter);
+        if let Err(error) = thread::Builder::new()
+            .name("viewwitness-paint-server".into())
+            .spawn(move || {
+                if let Err(error) = run_egui_paint_server(listener, receiver) {
+                    eprintln!("ViewWitness showcase paint server stopped: {error}");
+                }
+            })
+        {
+            eprintln!("ViewWitness showcase could not start paint worker: {error}");
+        }
+    }
+
+    if let Some(listener) = capture_listener {
+        let probe = EguiFrameProbe::install(ctx, 1);
+        if let Err(error) = thread::Builder::new()
+            .name("viewwitness-capture-server".into())
+            .spawn(move || {
+                if let Err(error) =
+                    run_egui_capture_server(listener, probe, Duration::from_secs(2))
+                {
+                    eprintln!("ViewWitness showcase exact capture server stopped: {error}");
+                }
+            })
+        {
+            eprintln!("ViewWitness showcase could not start exact capture worker: {error}");
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
