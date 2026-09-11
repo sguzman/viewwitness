@@ -9,16 +9,22 @@ use crate::{EguiCorrelatedCapture, Rect, to_agent_text};
 /// generic renderer submissions into guessed identity mappings.
 ///
 /// The canonical semantic witness is emitted using the ordinary ViewWitness
-/// agent projection. Explicit application-authored custom paint bindings follow,
-/// then renderer evidence as one ordered line per generic paint submission.
-/// `visible_fraction` is explicitly labeled as a derived bounding-box/clip
-/// measure rather than exact raster coverage.
+/// agent projection. Explicit application-authored logical objects follow, each
+/// with zero or more separately observed paint-binding lines, then renderer
+/// evidence as one ordered line per generic paint submission. Clip survival is
+/// explicitly labeled as a derived bounding-box measure rather than exact raster
+/// coverage.
 #[must_use]
 pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> String {
     let mut output = String::new();
+    let authored_binding_count: usize = capture
+        .authored_objects
+        .iter()
+        .map(|object| object.bindings.len())
+        .sum();
     writeln!(
         output,
-        "egui-correlated request={} viewport_id={} pass={} viewport_rect=[{},{},{},{}] paint_count={} authored_count={} correlation=same_full_output",
+        "egui-correlated request={} viewport_id={} pass={} viewport_rect=[{},{},{},{}] paint_count={} authored_count={} authored_binding_count={} correlation=same_full_output",
         capture.request_id,
         capture.viewport_id,
         capture.pass_nr,
@@ -28,6 +34,7 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
         capture.viewport_rect.height,
         capture.paint.len(),
         capture.authored_objects.len(),
+        authored_binding_count,
     )
     .expect("writing to String cannot fail");
 
@@ -35,12 +42,13 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
 
     let mut authored: Vec<_> = capture.authored_objects.iter().collect();
     authored.sort_by(|a, b| {
-        (&a.id, a.layer_id, a.shape_index).cmp(&(&b.id, b.layer_id, b.shape_index))
+        (&a.id, &a.role, &a.name).cmp(&(&b.id, &b.role, &b.name))
     });
-    for object in authored {
+    for (object_index, object) in authored.into_iter().enumerate() {
         write!(
             output,
-            "authored-object id={} role={}",
+            "authored-object index={} id={} role={}",
+            object_index,
             json(&object.id),
             json(&object.role),
         )
@@ -48,44 +56,57 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
         if let Some(name) = &object.name {
             write!(output, " name={}", json(name)).expect("writing to String cannot fail");
         }
-        write!(
+        writeln!(
             output,
-            " semantic_evidence={} binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
+            " semantic_evidence={} binding_count={}",
             json(&object.semantic_evidence),
-            json(&object.binding_evidence),
-            json(&object.layer_order),
-            object.layer_id,
-            object.shape_index,
-            object.verified_at_end_pass,
+            object.bindings.len(),
         )
         .expect("writing to String cannot fail");
-        if let Some(kind) = object.kind {
-            write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");
-        }
-        if let Some(bounds) = object.bounds {
-            write!(output, " bounds={}", rect(bounds)).expect("writing to String cannot fail");
-        }
-        match object.clip_rect {
-            Some(clip) => write!(output, " clip={}", rect(clip)),
-            None => write!(output, " clip=unbounded"),
-        }
-        .expect("writing to String cannot fail");
 
-        if object.bounds.is_some() {
+        for (binding_index, binding) in object.bindings.iter().enumerate() {
             write!(
                 output,
-                " visible_fraction={} visible_fraction_evidence=derived_bbox_clip",
-                object.visible_fraction(),
+                "authored-binding object_index={} binding_index={} object_id={} binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
+                object_index,
+                binding_index,
+                json(&object.id),
+                json(&binding.binding_evidence),
+                json(&binding.layer_order),
+                binding.layer_id,
+                binding.shape_index,
+                binding.verified_at_end_pass,
             )
             .expect("writing to String cannot fail");
-            if let Some(visible) = object.visible_bounds() {
-                write!(output, " visible_bounds={}", rect(visible))
-                    .expect("writing to String cannot fail");
-            } else {
-                write!(output, " visible_bounds=none").expect("writing to String cannot fail");
+            if let Some(kind) = binding.kind {
+                write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");
             }
+            if let Some(bounds) = binding.bounds {
+                write!(output, " bounds={}", rect(bounds)).expect("writing to String cannot fail");
+            }
+            match binding.clip_rect {
+                Some(clip) => write!(output, " clip={}", rect(clip)),
+                None => write!(output, " clip=unbounded"),
+            }
+            .expect("writing to String cannot fail");
+
+            if binding.bounds.is_some() {
+                write!(
+                    output,
+                    " visible_fraction={} visible_fraction_evidence=derived_bbox_clip",
+                    binding.visible_fraction(),
+                )
+                .expect("writing to String cannot fail");
+                if let Some(visible) = binding.visible_bounds() {
+                    write!(output, " visible_bounds={}", rect(visible))
+                        .expect("writing to String cannot fail");
+                } else {
+                    write!(output, " visible_bounds=none")
+                        .expect("writing to String cannot fail");
+                }
+            }
+            output.push('\n');
         }
-        output.push('\n');
     }
 
     let mut paint: Vec<_> = capture.paint.iter().collect();
