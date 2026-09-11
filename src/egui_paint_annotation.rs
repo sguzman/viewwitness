@@ -63,12 +63,19 @@ impl From<Order> for EguiLayerOrder {
 /// One observed binding between an authored logical object and a concrete egui
 /// paint slot used during the captured pass.
 ///
+/// `authored_binding_id`, when present, is an application-authored continuity
+/// claim for this sub-part of the logical object. It is intentionally separate
+/// from the observed `LayerId + ShapeIdx`, which is exact-pass execution evidence
+/// and may shift when unrelated paint structure changes.
+///
 /// `binding_evidence` is `observed` because ViewWitness records the actual
 /// `LayerId + ShapeIdx` returned by egui and verifies that slot against the final
 /// paint list at end-of-pass. Bounds, clip, and kind are likewise read from that
 /// final slot instead of remembered from the original submission call.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EguiAuthoredPaintBinding {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authored_binding_id: Option<String>,
     pub binding_evidence: String,
     pub layer_order: EguiLayerOrder,
     pub layer_id: u64,
@@ -121,9 +128,10 @@ impl EguiAuthoredPaintBinding {
 ///
 /// `semantic_evidence` is `intended` because identity/name/role are declared by
 /// the application. Each entry in `bindings` is separate observed execution
-/// evidence. ViewWitness does not infer object grouping from duplicate IDs or
-/// coincident geometry: multi-shape membership exists only when the application
-/// explicitly groups the paint submissions through [`EguiPaintAnnotator::paint_object`].
+/// evidence, optionally augmented with an authored sub-binding continuity ID.
+/// ViewWitness does not infer object grouping from duplicate IDs or coincident
+/// geometry: multi-shape membership exists only when the application explicitly
+/// groups the paint submissions through [`EguiPaintAnnotator::paint_object`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EguiAuthoredPaintObject {
     pub id: String,
@@ -137,6 +145,7 @@ pub struct EguiAuthoredPaintObject {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PendingPaintBinding {
+    pub authored_binding_id: Option<String>,
     pub layer_id: LayerId,
     pub shape_index: ShapeIdx,
 }
@@ -172,13 +181,47 @@ impl EguiPaintObjectScope {
         shape_index
     }
 
+    /// Paint one shape with an application-authored binding ID that may be used
+    /// as cross-frame continuity evidence for this sub-part of the object.
+    pub fn add_shape_with_id(
+        &mut self,
+        painter: &Painter,
+        authored_binding_id: impl Into<String>,
+        shape: impl Into<egui::epaint::Shape>,
+    ) -> ShapeIdx {
+        let shape_index = painter.add(shape);
+        self.bind_shape_with_id(painter, authored_binding_id, shape_index);
+        shape_index
+    }
+
     /// Include an already-created shape handle in this logical object's binding
-    /// set when exact capture is active.
+    /// set when exact capture is active, without an authored sub-binding ID.
     pub fn bind_shape(&mut self, painter: &Painter, shape_index: ShapeIdx) {
+        self.bind_shape_internal(painter, None, shape_index);
+    }
+
+    /// Include an already-created shape handle with an application-authored
+    /// binding ID that may be used as cross-frame continuity evidence.
+    pub fn bind_shape_with_id(
+        &mut self,
+        painter: &Painter,
+        authored_binding_id: impl Into<String>,
+        shape_index: ShapeIdx,
+    ) {
+        self.bind_shape_internal(painter, Some(authored_binding_id.into()), shape_index);
+    }
+
+    fn bind_shape_internal(
+        &mut self,
+        painter: &Painter,
+        authored_binding_id: Option<String>,
+        shape_index: ShapeIdx,
+    ) {
         let Some(bindings) = &mut self.bindings else {
             return;
         };
         bindings.push(PendingPaintBinding {
+            authored_binding_id,
             layer_id: painter.layer_id(),
             shape_index,
         });
@@ -268,6 +311,7 @@ impl EguiPaintAnnotator {
         lock_pending(&self.pending).push(PendingPaintObject {
             descriptor,
             bindings: vec![PendingPaintBinding {
+                authored_binding_id: None,
                 layer_id: painter.layer_id(),
                 shape_index,
             }],
@@ -327,6 +371,7 @@ fn resolve_binding(ctx: &egui::Context, pending: PendingPaintBinding) -> EguiAut
     };
 
     EguiAuthoredPaintBinding {
+        authored_binding_id: pending.authored_binding_id,
         binding_evidence: "observed".into(),
         layer_order: pending.layer_id.order.into(),
         layer_id: pending.layer_id.id.value(),
