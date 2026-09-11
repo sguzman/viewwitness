@@ -180,7 +180,9 @@ fn capture_exact_command(args: Vec<String>) -> io::Result<()> {
         OutputMode::Agent => print!("{}", correlated_capture_to_agent_text(&capture)),
         OutputMode::Yaml => {
             let yaml = serde_yaml_ng::to_string(&capture).map_err(|error| {
-                io::Error::other(format!("failed to serialize correlated capture YAML: {error}"))
+                io::Error::other(format!(
+                    "failed to serialize correlated capture YAML: {error}"
+                ))
             })?;
             print!("{yaml}");
         }
