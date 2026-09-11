@@ -3,7 +3,7 @@
 use std::{net::TcpListener, thread};
 
 use egui::accesskit::{Node, NodeId, Role, Tree, TreeId, TreeUpdate};
-use egui_inspection::{Request, Response, read_message, write_message};
+use egui_inspection::{EncodedPng, Request, Response, read_message, write_message};
 use viewwitness::InspectionObserver;
 
 #[test]
@@ -104,6 +104,48 @@ fn settle_and_capture_preserves_non_idle_evidence_and_still_captures() {
         Some(46),
         "a non-idle settle result must not discard observable GUI state"
     );
+
+    server.join().expect("mock peer exits cleanly");
+}
+
+#[test]
+fn screenshot_preserves_raster_evidence_and_rejects_invalid_scale_locally() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock inspection peer");
+    let addr = listener.local_addr().expect("listener address");
+
+    let expected_bytes = vec![137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4];
+    let server_bytes = expected_bytes.clone();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept observer");
+        egui_inspection::protocol::write_handshake(&mut stream).expect("write handshake");
+
+        let request: Request = read_message(&mut stream).expect("read screenshot request");
+        assert!(matches!(
+            request,
+            Request::GetScreenshot {
+                pixels_per_point: Some(scale)
+            } if scale == 1.0
+        ));
+
+        write_message(
+            &mut stream,
+            &Response::Screenshot(EncodedPng {
+                size: [320, 180],
+                bytes: server_bytes,
+            }),
+        )
+        .expect("write screenshot response");
+    });
+
+    let mut observer = InspectionObserver::connect(&addr.to_string()).expect("connect observer");
+    let error = observer
+        .screenshot(Some(0.0))
+        .expect_err("zero screenshot scale must be rejected locally");
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+
+    let screenshot = observer.screenshot(Some(1.0)).expect("screenshot succeeds");
+    assert_eq!(screenshot.size, [320, 180]);
+    assert_eq!(screenshot.png_bytes, expected_bytes);
 
     server.join().expect("mock peer exits cleanly");
 }
