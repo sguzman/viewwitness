@@ -51,7 +51,7 @@ Derived facts must remain epistemically marked as derived.
 
 ## M2 — egui capture + living showcase
 
-**Core semantic capture, external observation, and first rendered-evidence probes established.**
+**Core semantic capture, external observation, and live rendered-evidence transport established.**
 
 Established semantic/live slice:
 
@@ -66,19 +66,28 @@ Established semantic/live slice:
 - executable identity probe demonstrating ordinary state stability and structure-sensitive auto identity;
 - living native eframe showcase with controls, tables, scrolling, overlays, modal state, pressure switches, and custom-painted negative controls;
 - optional `observer` feature with external `InspectionObserver` speaking the versioned `egui_inspection` protocol directly;
-- real loopback protocol tests for handshake, TCP framing, MessagePack tree capture, scale, identity, and settle sequencing;
+- real loopback protocol tests for handshake, TCP framing, MessagePack tree capture, scale, identity, settle sequencing, and PNG screenshot retrieval;
 - bounded `settle` and `settle_and_capture`, preserving `settled: false` as evidence instead of throwing away a busy state;
+- separate screenshot raster evidence because the upstream screenshot response lacks a trustworthy semantic-frame token;
 - CI over both the default feature set and `--all-features`;
 - an architectural rule that expensive serialization/analysis/diffing/live serving must not burden the GUI thread.
 
-Established rendered-evidence research slice:
+Established rendered-evidence/live slice:
 
 - provisional `EguiPaintObservation` over public `FullOutput::shapes`;
+- compact `EguiPaintKind` enum rather than per-shape heap strings;
 - observed flattened back-to-front renderer order;
 - observed visual bounding rectangles and finite clip/scissor rectangles;
 - deterministic `visible_bounds` and bounding-box `visible_fraction`;
 - executable proof that a paint submission may remain in the renderer list while being partially or fully clipped;
-- explicit refusal to invent AccessKit-node ↔ paint-shape identity when egui does not expose that mapping.
+- explicit refusal to invent AccessKit-node ↔ paint-shape identity when egui does not expose that mapping;
+- `EguiPaintReporter` using a bounded `sync_channel` and `try_send` from `output_hook`;
+- executable backpressure proof that queue saturation drops a paint frame instead of blocking an egui pass, with `dropped_before` surfacing the loss;
+- serializable `EguiPaintFrame` carrying raw viewport identity, viewport pass number, scale, loss evidence, and paint observations;
+- ViewWitness-owned read-only TCP paint side channel, separate from `egui_inspection`;
+- versioned handshake, compact NDJSON frames, latest-frame retention, bounded message size, and short stalled-client write timeout;
+- external `EguiPaintObserver` with end-to-end loopback proof that a pre-connection frame is retained/replayed and later passes stream live;
+- explicit rejection of an unknown paint protocol peer.
 
 `docs/rendered-evidence.md` records the evidence-layer model and promotion rules. Paint observations intentionally remain outside canonical `Witness` for now.
 
@@ -102,23 +111,31 @@ The showcase is a pressure laboratory rather than a pretty demo. Active pressure
 
 Where possible, each significant state should acquire an expected witness fixture, invariant, or explicit negative-control expectation.
 
-### Live observer
+### Live observation
 
-The preferred production/live architecture is executable: an external ViewWitness observer consumes eframe inspection state rather than performing heavy witness work inside `App::update` or rendering paths.
-
-Current read-only path:
+The live architecture now has two independent read-only external channels:
 
 ```text
+semantic/raster:
 running eframe app
-    -> egui_inspection GetTree / Settle
+    -> egui_inspection :5719
     -> external InspectionObserver
-    -> canonical Witness
-    -> derived relations / compact text / diffs
+    -> canonical Witness / raster PNG
+
+renderer evidence:
+running eframe app
+    -> EguiPaintReporter output_hook
+    -> bounded nonblocking queue
+    -> worker run_egui_paint_server :5720
+    -> external EguiPaintObserver
+    -> EguiPaintFrame
 ```
 
-The next useful read-only evidence channel is screenshot retrieval as supporting raster evidence. After that, richer live paint/widget metadata will require either a lightweight ViewWitness-specific in-process reporting hook or an upstream inspection extension; the current inspection protocol does not export `FullOutput::shapes` or the complete internal `WidgetRects` table.
+The two streams are **not exactly frame-correlated**. `egui_inspection` owns a plugin-global `step` counter; the paint reporter records egui's viewport-aware cumulative pass number. ViewWitness must not join those clocks by equality or assumed offset.
 
-Observation and control remain conceptually separate even though the upstream protocol supports input injection. A witness workflow must remain usable without granting mutation authority.
+The next capture problem is therefore a shared, on-demand ViewWitness capture point that can testify that semantic and paint evidence came from one `FullOutput` without making the render thread serialize, diff, persist, serve sockets, or perform analysis.
+
+Observation and control remain conceptually separate even though the upstream inspection protocol supports input injection. A witness workflow must remain usable without granting mutation authority.
 
 ## M3 — witness diff
 
@@ -150,11 +167,14 @@ viewwitness inspect <file> [--agent|--yaml]
 viewwitness derive <file> [--agent|--yaml]
 viewwitness diff <before> <after> [--agent|--yaml]
 viewwitness capture [address] [--agent|--yaml] [--derive] [--settle=N]
+viewwitness screenshot <output.png> [--address=HOST:PORT] [--scale=N]
 ```
 
-Agent text is the default for repeated inspect/derive/diff/capture loops; YAML remains the richer interchange/debug projection. Subprocess tests cover the file-oriented commands, and the live-capture stack is covered by protocol integration tests.
+Agent text is the default for repeated inspect/derive/diff/capture loops; YAML remains the richer interchange/debug projection. Screenshot capture deliberately writes separate raster evidence rather than pretending it is frame-correlated with semantic capture. Subprocess tests cover the file-oriented commands and screenshot output; the live-capture stack is covered by protocol integration tests.
 
 The CLI must remain orchestration around the library, not a second model or execution layer.
+
+A paint-observation CLI surface becomes useful once the worker-side live transport contract settles; it should expose paint evidence as paint evidence rather than embedding it into canonical witness YAML.
 
 ## M5 — agent bridge
 
