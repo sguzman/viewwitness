@@ -1,0 +1,234 @@
+use std::{
+    io,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel},
+    },
+    time::{Duration, Instant},
+};
+
+use egui::accesskit::TreeUpdate;
+
+use crate::{EguiPaintObservation, paint_observations_from_egui_output};
+
+const DROP_POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+/// Raw egui evidence copied from one exact `FullOutput` in response to an
+/// explicit ViewWitness capture request.
+///
+/// Unlike the independent external inspection and continuous paint channels,
+/// `accesskit` and `paint` in this value are known to originate from the same
+/// egui output hook invocation. The type remains egui-specific integration
+/// evidence rather than canonical `Witness` state.
+#[derive(Debug, Clone)]
+pub struct EguiFrameEvidence {
+    pub request_id: u64,
+    pub viewport_id: u64,
+    pub pass_nr: u64,
+    pub pixels_per_point: f32,
+    pub accesskit: Option<TreeUpdate>,
+    pub paint: Vec<EguiPaintObservation>,
+}
+
+#[derive(Default)]
+struct ProbeState {
+    requested: AtomicU64,
+    dropped: AtomicU64,
+}
+
+struct EguiFrameProbePlugin {
+    state: Arc<ProbeState>,
+    sender: SyncSender<EguiFrameEvidence>,
+    handled_request_id: u64,
+    connected: bool,
+}
+
+impl egui::Plugin for EguiFrameProbePlugin {
+    fn debug_name(&self) -> &'static str {
+        "ViewWitness frame probe"
+    }
+
+    fn setup(&mut self, ctx: &egui::Context) {
+        // A requested correlated capture needs egui to emit semantic evidence.
+        ctx.enable_accesskit();
+    }
+
+    fn output_hook(&mut self, ctx: &egui::Context, output: &mut egui::FullOutput) {
+        if !self.connected {
+            return;
+        }
+
+        let request_id = self.state.requested.load(Ordering::Acquire);
+        if request_id == 0 || request_id <= self.handled_request_id {
+            return;
+        }
+
+        // Mark this request handled before copying. A full response queue must
+        // never cause an implicit retry/repaint loop on later GUI passes.
+        self.handled_request_id = request_id;
+
+        let evidence = EguiFrameEvidence {
+            request_id,
+            viewport_id: ctx.viewport_id().0.value(),
+            pass_nr: ctx.cumulative_pass_nr(),
+            pixels_per_point: output.pixels_per_point,
+            accesskit: output.platform_output.accesskit_update.clone(),
+            paint: paint_observations_from_egui_output(output),
+        };
+
+        match self.sender.try_send(evidence) {
+            Ok(()) => {}
+            Err(TrySendError::Full(_)) => {
+                // Surface loss to the waiting worker without blocking or
+                // retrying on the GUI thread.
+                self.state.dropped.store(request_id, Ordering::Release);
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                self.connected = false;
+            }
+        }
+    }
+}
+
+/// Handle for requesting exact same-pass semantic + paint evidence from egui.
+///
+/// Install this once for an `egui::Context`, then use the handle from worker
+/// code. A request only wakes egui; all waiting/conversion/serialization remains
+/// outside the GUI hook. Only one request may be pending through this handle at
+/// a time.
+pub struct EguiFrameProbe {
+    ctx: egui::Context,
+    state: Arc<ProbeState>,
+    receiver: Receiver<EguiFrameEvidence>,
+    next_request_id: u64,
+    pending_request_id: Option<u64>,
+}
+
+impl EguiFrameProbe {
+    /// Install the on-demand probe plugin and return its worker-side handle.
+    ///
+    /// A requested response capacity of zero is promoted to one so delivery
+    /// never depends on a receiver rendezvous at the exact output-hook instant.
+    #[must_use]
+    pub fn install(ctx: &egui::Context, response_capacity: usize) -> Self {
+        let state = Arc::new(ProbeState::default());
+        let (sender, receiver) = sync_channel(response_capacity.max(1));
+        ctx.add_plugin(EguiFrameProbePlugin {
+            state: Arc::clone(&state),
+            sender,
+            handled_request_id: 0,
+            connected: true,
+        });
+
+        Self {
+            ctx: ctx.clone(),
+            state,
+            receiver,
+            next_request_id: 0,
+            pending_request_id: None,
+        }
+    }
+
+    /// Request one correlated capture and wake an idle egui integration.
+    ///
+    /// This method does not wait for or process GUI output. Call
+    /// [`Self::recv_timeout`] later, normally from worker code after egui has
+    /// produced another pass.
+    pub fn request_capture(&mut self) -> io::Result<u64> {
+        if self.pending_request_id.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "an egui frame capture request is already pending",
+            ));
+        }
+
+        self.next_request_id = self
+            .next_request_id
+            .checked_add(1)
+            .ok_or_else(|| io::Error::other("egui frame probe request id exhausted"))?;
+        let request_id = self.next_request_id;
+        self.pending_request_id = Some(request_id);
+        self.state.requested.store(request_id, Ordering::Release);
+        self.ctx.request_repaint();
+        Ok(request_id)
+    }
+
+    /// Wait for the currently pending capture request.
+    ///
+    /// Stale responses from requests that previously timed out are discarded.
+    /// If the GUI hook had to drop the current response because the bounded
+    /// response queue was full, this returns `WouldBlock` rather than hiding
+    /// the loss or retrying work on the render thread.
+    pub fn recv_timeout(&mut self, timeout: Duration) -> io::Result<EguiFrameEvidence> {
+        let request_id = self.pending_request_id.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "no egui frame capture request is pending",
+            )
+        })?;
+        let deadline = Instant::now() + timeout;
+
+        loop {
+            if self.state.dropped.load(Ordering::Acquire) == request_id {
+                self.pending_request_id = None;
+                return Err(io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    format!(
+                        "egui frame capture request {request_id} was dropped because the bounded response queue was full"
+                    ),
+                ));
+            }
+
+            let now = Instant::now();
+            if now >= deadline {
+                self.pending_request_id = None;
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    format!("egui frame capture request {request_id} timed out"),
+                ));
+            }
+            let remaining = deadline.saturating_duration_since(now);
+            let wait = remaining.min(DROP_POLL_INTERVAL);
+
+            match self.receiver.recv_timeout(wait) {
+                Ok(evidence) if evidence.request_id == request_id => {
+                    self.pending_request_id = None;
+                    return Ok(evidence);
+                }
+                Ok(evidence) if evidence.request_id < request_id => {
+                    // A response can arrive after its caller timed out. It is
+                    // stale evidence for this request and must not be relabeled.
+                }
+                Ok(evidence) => {
+                    self.pending_request_id = None;
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!(
+                            "egui frame probe received future request {} while waiting for {request_id}",
+                            evidence.request_id
+                        ),
+                    ));
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => {
+                    self.pending_request_id = None;
+                    return Err(io::Error::new(
+                        io::ErrorKind::BrokenPipe,
+                        "egui frame probe response channel disconnected",
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Request and wait for one exact same-pass semantic + paint capture.
+    ///
+    /// The application must continue servicing egui while this blocks. In a
+    /// native application this convenience method therefore belongs on a worker
+    /// thread, never the GUI/render thread.
+    pub fn capture_timeout(&mut self, timeout: Duration) -> io::Result<EguiFrameEvidence> {
+        self.request_capture()?;
+        self.recv_timeout(timeout)
+    }
+}
