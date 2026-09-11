@@ -31,6 +31,22 @@ impl EguiPaintObservation {
             None => Some(self.bounds),
         }
     }
+
+    /// Fraction of the shape's axis-aligned visual bounds surviving the clip.
+    ///
+    /// This is a geometric derivation, not a claim about alpha coverage inside
+    /// those bounds. A circle clipped to half its bounding box, for example,
+    /// reports bounding-box visibility rather than exact painted-pixel area.
+    #[must_use]
+    pub fn visible_fraction(&self) -> f32 {
+        let area = self.bounds.area();
+        if area <= 0.0 || !area.is_finite() {
+            return 0.0;
+        }
+
+        self.visible_bounds()
+            .map_or(0.0, |visible| (visible.area() / area).clamp(0.0, 1.0))
+    }
 }
 
 /// Read the renderer-facing egui paint list as provisional visual evidence.
