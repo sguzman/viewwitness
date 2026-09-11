@@ -59,7 +59,7 @@ The optional `egui` feature translates egui-produced AccessKit output into the c
 
 It also exposes provisional renderer evidence through `EguiPaintObservation`. Paint classification uses a small `Copy` enum rather than allocating a string per shape. Bounding-box clipping is derived explicitly; stronger claims such as true visual occlusion are not invented from rectangle overlap.
 
-`EguiPaintReporter` provides continuous low-cost paint observation through a bounded nonblocking queue. The render/output hook performs cheap copying and `try_send` only; queue saturation drops evidence rather than stalling egui. A worker-side loopback TCP transport can stream those paint frames to an external read-only observer.
+`EguiPaintReporter` provides continuous low-cost paint observation through a bounded nonblocking queue. The render/output hook performs cheap copying and `try_send` only; queue saturation drops evidence rather than stalling egui. A worker-side loopback TCP transport can stream those paint frames to an external read-only observer on `127.0.0.1:5720`.
 
 For heavier diagnosis, `EguiFrameProbe` provides **on-demand exact same-pass capture**. One explicit request causes a single egui output hook invocation to copy:
 
@@ -74,6 +74,41 @@ The raw evidence is handed through a bounded channel and converted off the GUI t
 
 The correlated path does **not** derive viewport size from AccessKit root bounds. Executable testing demonstrated that a valid headless egui semantic tree can lack usable root bounds even while egui itself has trustworthy viewport geometry. The in-process probe therefore records `InputState::viewport_rect()` directly from the same pass and rejects invalid geometry instead of guessing.
 
+`run_egui_capture_server` and `EguiCaptureObserver` expose that exact product through a separate read-only request/response endpoint on `127.0.0.1:5721`. This protocol is intentionally distinct from both upstream `egui_inspection` and the continuous paint stream: an exact capture is heavier, explicitly requested work rather than disposable monitoring traffic.
+
+`EguiCorrelatedCapture` has two external projections:
+
+- a complete serializable envelope containing the canonical witness and correlated paint evidence;
+- deterministic agent text that emits semantic witness lines and paint-submission lines separately, without inventing node↔paint identity.
+
+## CLI
+
+The ordinary semantic path remains available through upstream inspection:
+
+```text
+cargo run --features observer --bin viewwitness -- capture --settle=8
+```
+
+An application hosting ViewWitness's exact capture service can instead be queried with:
+
+```text
+cargo run --features egui --bin viewwitness -- capture-exact
+```
+
+Agent text is the default. Preserve the complete structured envelope as YAML with:
+
+```text
+cargo run --features egui --bin viewwitness -- capture-exact --yaml
+```
+
+Add deterministic semantic geometry relations without mutating the observed paint evidence with:
+
+```text
+cargo run --features egui --bin viewwitness -- capture-exact --derive
+```
+
+The exact command defaults to `127.0.0.1:5721`; a different address may be supplied positionally.
+
 Run the headless end-to-end semantic example with:
 
 ```text
@@ -86,7 +121,7 @@ The optional `observer` feature speaks the versioned `egui_inspection` protocol 
 cargo run --example inspection_capture --features observer
 ```
 
-The observer path is deliberately external: GUI code reports state, while ViewWitness performs conversion, serialization, diffing, derivation, networking, and agent-facing work outside the render/update thread.
+The observer paths are deliberately external: GUI code reports state, while ViewWitness performs conversion, serialization, diffing, derivation, networking, and agent-facing work outside the render/update thread.
 
 AccessKit/egui identity is treated as evidence rather than absolute truth. Automatically generated identity has been empirically shown to survive ordinary state changes while remaining sensitive to structural insertion, so captured nodes state that stability explicitly. Application-authored IDs are preserved as additional evidence when available.
 
@@ -95,7 +130,7 @@ AccessKit/egui identity is treated as evidence rather than absolute truth. Autom
 The current architecture intentionally has two different observation tempos:
 
 1. **continuous monitoring** — cheap paint metadata flows through a bounded queue; dropped observations are preferable to render-thread backpressure;
-2. **exact diagnosis** — a requested capture copies semantic + viewport + paint evidence from one exact egui `FullOutput`, then performs canonical conversion off-thread.
+2. **exact diagnosis** — a requested capture copies semantic + viewport + paint evidence from one exact egui `FullOutput`, then performs canonical conversion and network serialization off-thread.
 
 These should not be collapsed into one mechanism. Continuous evidence needs to be cheap and disposable. Exact evidence may be heavier because it is explicitly requested and correlated.
 
@@ -116,12 +151,15 @@ ViewWitness has moved beyond format-only exploration. The current project has:
 - a read-only external paint side channel with versioned handshake and latest-frame replay;
 - an on-demand exact same-pass semantic + viewport + paint frame probe;
 - an off-thread `EguiCorrelatedCapture` product with explicit frame-clock and correlation provenance;
+- a read-only exact-capture TCP protocol and external `EguiCaptureObserver`;
+- deterministic correlated agent text that preserves the semantic/paint distinction;
+- `viewwitness capture-exact` with agent-text and full-envelope YAML output;
 - a living native eframe showcase;
 - a read-only external `egui_inspection` semantic/raster observer;
-- loopback integration tests for live protocol framing;
+- loopback integration tests for live protocol framing and exact CLI capture;
 - CI over both the default and all-features builds.
 
-The v0 schema is still intentionally provisional. Paint evidence remains egui-specific rather than being prematurely promoted into the cross-backend `Witness` schema. The next immediate integration goal is to expose exact correlated capture through a read-only external request/response boundary so agents can obtain it without running inside the application process.
+The v0 schema is still intentionally provisional. Paint evidence remains egui-specific rather than being prematurely promoted into the cross-backend `Witness` schema. The immediate pressure now shifts from “can exact evidence escape the process?” to live application integration, agent debugging workflows, and the still-open widget↔paint/custom-canvas identity gap.
 
 ## Non-goals for the first phase
 
