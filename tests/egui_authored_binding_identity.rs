@@ -63,15 +63,13 @@ fn capture_object(
         .request_capture()
         .expect("request authored binding identity capture");
 
-    let outline_bounds =
-        egui::Rect::from_min_size(egui::pos2(30.0, 30.0), egui::vec2(70.0, 50.0));
+    let outline_bounds = egui::Rect::from_min_size(egui::pos2(30.0, 30.0), egui::vec2(70.0, 50.0));
     let handle_center = egui::pos2(95.0, 75.0);
 
     let output = ctx.run_ui(test_input(), |ui| {
         let painter = ui.painter().clone();
         annotator.paint_object(
-            EguiPaintObjectDescriptor::new("canvas:keyed", "diagram_node")
-                .with_name("Keyed node"),
+            EguiPaintObjectDescriptor::new("canvas:keyed", "diagram_node").with_name("Keyed node"),
             |object| {
                 let outline = || {
                     RectShape::stroke(
