@@ -24,9 +24,7 @@ pub use egui_capture::{
     EguiCaptureContext, witness_from_egui_output, witness_from_egui_tree_update,
 };
 #[cfg(feature = "egui")]
-pub use egui_paint::{
-    EguiPaintKind, EguiPaintObservation, paint_observations_from_egui_output,
-};
+pub use egui_paint::{EguiPaintKind, EguiPaintObservation, paint_observations_from_egui_output};
 #[cfg(feature = "egui")]
 pub use egui_paint_reporter::{EguiPaintFrame, EguiPaintReporter};
 pub use format::{diff_from_yaml, diff_to_yaml, from_yaml, to_yaml};
