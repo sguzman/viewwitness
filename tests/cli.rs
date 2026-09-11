@@ -143,9 +143,11 @@ fn capture_exact_defaults_to_correlated_agent_text() {
         )
     );
     assert!(stdout.contains("node id=\"ak:1\" role=\"button\" name=\"Apply\""));
-    assert!(stdout.contains(
-        "authored-object id=\"canvas:node\" role=\"diagram_node\" name=\"Canvas node\""
-    ));
+    assert!(
+        stdout.contains(
+            "authored-object id=\"canvas:node\" role=\"diagram_node\" name=\"Canvas node\""
+        )
+    );
     assert!(stdout.contains("binding_evidence=\"observed\""));
     assert!(stdout.contains("paint order=1 kind=\"rect\" bounds=[10,10,20,10]"));
     assert!(stdout.contains("correlation=same_full_output"));
