@@ -9,8 +9,12 @@ use std::{
 };
 
 use egui::accesskit::TreeUpdate;
+use serde_json::json;
 
-use crate::{EguiPaintObservation, paint_observations_from_egui_output};
+use crate::{
+    EguiCaptureContext, EguiPaintObservation, Viewport, Witness, paint_observations_from_egui_output,
+    witness_from_egui_tree_update,
+};
 
 const DROP_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
@@ -29,6 +33,81 @@ pub struct EguiFrameEvidence {
     pub pixels_per_point: f32,
     pub accesskit: Option<TreeUpdate>,
     pub paint: Vec<EguiPaintObservation>,
+}
+
+/// Off-thread product of one exact same-`FullOutput` egui capture.
+///
+/// The semantic half is converted into the canonical `Witness`; the paint half
+/// deliberately remains provisional egui evidence. `witness.capture.frame`
+/// uses `pass_nr`, and metadata names that clock explicitly so consumers do not
+/// confuse it with `egui_inspection`'s unrelated step counter.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EguiCorrelatedCapture {
+    pub request_id: u64,
+    pub viewport_id: u64,
+    pub pass_nr: u64,
+    pub witness: Witness,
+    pub paint: Vec<EguiPaintObservation>,
+}
+
+impl EguiFrameEvidence {
+    /// Convert raw same-pass evidence into a canonical semantic witness plus
+    /// its correlated provisional paint evidence.
+    ///
+    /// This is worker-side work. The viewport is derived from the observed
+    /// AccessKit root bounds and captured scale. Missing or invalid geometry is
+    /// an error rather than permission to invent viewport dimensions.
+    pub fn into_correlated_capture(self) -> io::Result<EguiCorrelatedCapture> {
+        let update = self.accesskit.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "same-pass egui capture produced no AccessKit tree",
+            )
+        })?;
+        let viewport = viewport_from_root(&update, self.pixels_per_point).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "same-pass egui AccessKit root has no usable bounds; refusing to guess viewport geometry",
+            )
+        })?;
+
+        let mut witness = witness_from_egui_tree_update(
+            &update,
+            EguiCaptureContext::new(viewport).with_frame(self.pass_nr),
+        );
+        witness.capture.metadata.insert(
+            "transport".into(),
+            json!("viewwitness_egui_frame_probe"),
+        );
+        witness
+            .capture
+            .metadata
+            .insert("frame_clock".into(), json!("egui_cumulative_pass_nr"));
+        witness.capture.metadata.insert(
+            "semantic_paint_correlation".into(),
+            json!("same_full_output"),
+        );
+        witness
+            .capture
+            .metadata
+            .insert("frame_probe_request_id".into(), json!(self.request_id));
+        witness
+            .capture
+            .metadata
+            .insert("egui_viewport_id".into(), json!(self.viewport_id));
+        witness
+            .capture
+            .metadata
+            .insert("egui_pass_nr".into(), json!(self.pass_nr));
+
+        Ok(EguiCorrelatedCapture {
+            request_id: self.request_id,
+            viewport_id: self.viewport_id,
+            pass_nr: self.pass_nr,
+            witness,
+            paint: self.paint,
+        })
+    }
 }
 
 #[derive(Default)]
@@ -231,4 +310,29 @@ impl EguiFrameProbe {
         self.request_capture()?;
         self.recv_timeout(timeout)
     }
+}
+
+fn viewport_from_root(update: &TreeUpdate, pixels_per_point: f32) -> Option<Viewport> {
+    if !pixels_per_point.is_finite() || pixels_per_point <= 0.0 {
+        return None;
+    }
+
+    let root_id = update.tree.as_ref()?.root;
+    let root = update
+        .nodes
+        .iter()
+        .find_map(|(id, node)| (*id == root_id).then_some(node))?;
+    let bounds = root.bounds()?;
+    let width = (bounds.x1 - bounds.x0) as f32;
+    let height = (bounds.y1 - bounds.y0) as f32;
+
+    if !width.is_finite() || !height.is_finite() || width < 0.0 || height < 0.0 {
+        return None;
+    }
+
+    Some(Viewport {
+        width,
+        height,
+        scale_factor: pixels_per_point,
+    })
 }
