@@ -137,9 +137,11 @@ fn capture_exact_defaults_to_correlated_agent_text() {
 
     assert!(output.status.success(), "stderr: {}", stderr(&output));
     let stdout = String::from_utf8(output.stdout).expect("stdout utf8");
-    assert!(stdout.starts_with(
-        "egui-correlated request=7 viewport_id=2 pass=9 viewport_rect=[0,0,100,50]"
-    ));
+    assert!(
+        stdout.starts_with(
+            "egui-correlated request=7 viewport_id=2 pass=9 viewport_rect=[0,0,100,50]"
+        )
+    );
     assert!(stdout.contains("node id=\"ak:1\" role=\"button\" name=\"Apply\""));
     assert!(stdout.contains("paint order=1 kind=\"rect\" bounds=[10,10,20,10]"));
     assert!(stdout.contains("correlation=same_full_output"));
@@ -170,10 +172,7 @@ fn capture_exact_yaml_preserves_full_correlated_envelope() {
 #[cfg(feature = "egui")]
 fn spawn_exact_capture_peer(
     capture: viewwitness::EguiCorrelatedCapture,
-) -> (
-    std::net::SocketAddr,
-    std::thread::JoinHandle<()>,
-) {
+) -> (std::net::SocketAddr, std::thread::JoinHandle<()>) {
     use std::{
         io::{BufRead, BufReader, Write},
         net::TcpListener,
@@ -209,7 +208,9 @@ fn spawn_exact_capture_peer(
 
 #[cfg(feature = "egui")]
 fn sample_correlated_capture() -> viewwitness::EguiCorrelatedCapture {
-    use viewwitness::{EguiCorrelatedCapture, EguiPaintKind, EguiPaintObservation, Rect, from_yaml};
+    use viewwitness::{
+        EguiCorrelatedCapture, EguiPaintKind, EguiPaintObservation, Rect, from_yaml,
+    };
 
     let witness = from_yaml(
         r#"
