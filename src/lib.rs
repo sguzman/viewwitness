@@ -12,6 +12,8 @@ mod egui_capture;
 #[cfg(feature = "egui")]
 mod egui_capture_transport;
 #[cfg(feature = "egui")]
+mod egui_diff;
+#[cfg(feature = "egui")]
 mod egui_frame_probe;
 #[cfg(feature = "egui")]
 mod egui_paint;
@@ -39,6 +41,11 @@ pub use egui_capture::{
 pub use egui_capture_transport::{
     DEFAULT_EGUI_CAPTURE_ADDR, EGUI_CAPTURE_PROTOCOL_MAGIC, EGUI_CAPTURE_PROTOCOL_VERSION,
     EguiCaptureObserver, MAX_EGUI_CAPTURE_MESSAGE_BYTES, run_egui_capture_server,
+};
+#[cfg(feature = "egui")]
+pub use egui_diff::{
+    EguiAuthoredDiff, EguiAuthoredExecutionHandleChange, EguiAuthoredIdAmbiguity,
+    EguiAuthoredObjectChange, EguiCorrelatedDiff, diff_correlated_captures,
 };
 #[cfg(feature = "egui")]
 pub use egui_frame_probe::{EguiCorrelatedCapture, EguiFrameEvidence, EguiFrameProbe};
