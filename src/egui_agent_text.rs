@@ -68,10 +68,19 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
         for (binding_index, binding) in object.bindings.iter().enumerate() {
             write!(
                 output,
-                "authored-binding object_index={} binding_index={} object_id={} binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
+                "authored-binding object_index={} binding_index={} object_id={}",
                 object_index,
                 binding_index,
                 json(&object.id),
+            )
+            .expect("writing to String cannot fail");
+            if let Some(binding_id) = &binding.authored_binding_id {
+                write!(output, " authored_binding_id={}", json(binding_id))
+                    .expect("writing to String cannot fail");
+            }
+            write!(
+                output,
+                " binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
                 json(&binding.binding_evidence),
                 json(&binding.layer_order),
                 binding.layer_id,
@@ -150,7 +159,8 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
 ///
 /// Generic anonymous paint is intentionally absent because the correlated diff
 /// does not claim durable identity for those submissions. Layer-local ShapeIdx
-/// churn is emitted separately and labeled non-material.
+/// churn is emitted separately and labeled non-material. Authored binding IDs
+/// are included only when the application supplied them.
 #[must_use]
 pub fn correlated_diff_to_agent_text(diff: &EguiCorrelatedDiff) -> String {
     let mut output = String::new();
@@ -195,11 +205,27 @@ pub fn correlated_diff_to_agent_text(diff: &EguiCorrelatedDiff) -> String {
         )
         .expect("writing to String cannot fail");
     }
-    for churn in &diff.authored.execution_handle_churn {
+    for ambiguity in &diff.authored.binding_ambiguities {
         writeln!(
             output,
-            "authored-handle-churn id={} binding_ordinal={} before_shape_index={} after_shape_index={} material=false continuity=frame_local_structure_sensitive",
-            json(&churn.id),
+            "authored-binding-ambiguity object_id={} authored_binding_id={} before_count={} after_count={} matching=refused",
+            json(&ambiguity.object_id),
+            json(&ambiguity.binding_id),
+            ambiguity.before_count,
+            ambiguity.after_count,
+        )
+        .expect("writing to String cannot fail");
+    }
+    for churn in &diff.authored.execution_handle_churn {
+        write!(output, "authored-handle-churn id={}", json(&churn.id))
+            .expect("writing to String cannot fail");
+        if let Some(binding_id) = &churn.authored_binding_id {
+            write!(output, " authored_binding_id={}", json(binding_id))
+                .expect("writing to String cannot fail");
+        }
+        writeln!(
+            output,
+            " binding_ordinal={} before_shape_index={} after_shape_index={} material=false continuity=frame_local_structure_sensitive",
             churn.binding_ordinal,
             churn.before_shape_index,
             churn.after_shape_index,
