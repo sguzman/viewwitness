@@ -37,13 +37,11 @@ identity:
 
 `structure_sensitive` is deliberate. Executable probes show that ordinary state changes can preserve an automatically generated egui/AccessKit identity while structural insertion can change it. Application-authored `author_id` is preserved as additional evidence rather than silently replacing the observed AccessKit node ID.
 
-`witness_from_egui_tree_update` is specifically an **egui adapter**, not a general incremental AccessKit consumer. egui currently provides a complete tree for each generated accessibility frame, allowing ViewWitness to reconstruct parentage from that frame alone.
-
-### Paint-submission evidence
+### Generic paint-submission evidence
 
 AccessKit does not exhaust rendered reality. egui's public `FullOutput::shapes` exposes the flattened list of `ClippedShape` submissions heading toward the renderer.
 
-ViewWitness currently records provisional `EguiPaintObservation` values containing:
+ViewWitness records provisional `EguiPaintObservation` values containing:
 
 - flattened paint order;
 - a compact `EguiPaintKind`;
@@ -57,9 +55,43 @@ visible_bounds = bounds ∩ clip_rect
 visible_fraction = area(visible_bounds) / area(bounds)
 ```
 
-This is **not** exact raster/alpha coverage. Likewise, later paint order plus overlapping rectangles does not prove semantic occlusion. Transparency, strokes, meshes, callbacks, and many-to-many widget/paint relationships make that stronger claim unsafe.
+This is **not** exact raster/alpha coverage. Later paint order plus overlapping rectangles also does not prove semantic occlusion. Transparency, strokes, meshes, callbacks, and many-to-many object/paint relationships make that stronger claim unsafe.
 
-Paint evidence therefore remains egui-specific instead of being prematurely promoted into canonical `Witness`.
+Generic paint evidence therefore remains egui-specific instead of being prematurely promoted into canonical `Witness`.
+
+### Explicit authored custom-paint evidence
+
+Custom canvas objects may not exist meaningfully in AccessKit. ViewWitness now supports an explicit application-instrumented evidence path rather than trying to discover such objects from coincident geometry.
+
+`EguiPaintAnnotator` binds application-authored object semantics to the real paint handle returned by egui:
+
+- authored object ID;
+- authored role;
+- optional authored name;
+- painter `LayerId`;
+- returned layer-local `ShapeIdx`.
+
+The epistemic split is first-class:
+
+```text
+id / role / name             semantic_evidence = intended
+LayerId + ShapeIdx binding   binding_evidence = observed
+```
+
+The object meaning comes from the application. The fact that this application object was bound to that concrete egui paint slot is observed execution evidence. ViewWitness does not blur those two claims merely because they travel together.
+
+At `Plugin::on_end_pass`, after application UI code has painted but before egui drains graphic layers into `FullOutput`, the frame probe verifies the exact layer-local handle against egui's final paint list. `EguiAuthoredPaintObject` can therefore preserve:
+
+- layer category and numeric layer ID;
+- shape index;
+- whether the handle was verified at end-of-pass;
+- final shape kind;
+- final visual bounds;
+- final finite clip rectangle when available.
+
+Executable tests deliberately use identical overlapping geometry for two authored objects. They remain distinct because they occupy different paint handles. Another test annotates a rectangle and then replaces that exact slot via `Painter::set`; ViewWitness reports the final shape as a **circle**, demonstrating that the binding follows the real egui slot rather than remembered geometry or the initially submitted shape.
+
+This evidence remains provisional and egui-specific. It is not automatically a canonical `WitnessNode` and it does not create an AccessKit-node ↔ paint-shape mapping.
 
 ### Raster evidence
 
@@ -77,7 +109,7 @@ ViewWitness therefore keeps screenshots separate from semantic witnesses rather 
 - cumulative egui pass number;
 - pixels per point;
 - `dropped_before`, recording frames lost because the bounded queue was saturated;
-- provisional paint observations.
+- provisional generic paint observations.
 
 The reporter performs no serialization, networking, persistence, diffing, searching, or inference. If the consumer falls behind, evidence is dropped rather than blocking egui. Executable backpressure tests make this a project invariant rather than a performance suggestion.
 
@@ -93,37 +125,53 @@ The reporter performs no serialization, networking, persistence, diffing, search
 
 `EguiPaintObserver` is read-only. This channel is intended for cheap, disposable monitoring rather than exact diagnosis.
 
-## Exact same-pass semantic + paint capture
+Explicit authored-object bookkeeping is **not** collected continuously. An annotated paint call on an ordinary unrequested frame pays an atomic request-state read but does not push object bookkeeping into the pending annotation buffer. Rich identity is therefore an exact-diagnosis cost, not a permanent render-loop tax.
+
+## Exact same-pass capture
 
 Independent semantic and paint streams have different clocks and must not be joined by guesswork. ViewWitness therefore has its own on-demand shared capture point.
 
-`EguiFrameProbe` installs an egui plugin and enables AccessKit. A worker requests one capture. The request only wakes egui. On the next handled output hook, the plugin copies cheap evidence from that exact pass:
+`EguiFrameProbe` installs an egui plugin and enables AccessKit. A worker requests one capture and wakes egui.
+
+Capture eligibility is fixed at `on_begin_pass`. This prevents a request arriving halfway through a pass from collecting only a suffix of authored paint annotations while still claiming a complete correlated frame.
+
+During a requested pass:
+
+1. `on_begin_pass` activates exact capture and authored-paint bookkeeping;
+2. normal application UI code runs and paints;
+3. `on_end_pass` resolves any authored `(LayerId, ShapeIdx)` handles against the final layer-local paint lists;
+4. `output_hook` copies AccessKit, viewport, generic flattened paint, and the already-resolved authored-object evidence;
+5. a bounded channel hands the exact evidence to worker code.
+
+The requested `EguiFrameEvidence` therefore can contain:
 
 - AccessKit update;
 - egui-observed viewport rectangle;
 - viewport identity;
 - cumulative pass number;
 - pixels-per-point scale;
-- renderer-facing paint observations.
+- generic renderer-facing paint observations;
+- explicit authored custom-paint bindings from the same requested pass.
 
-The raw `EguiFrameEvidence` is sent through a bounded channel. Conversion to the canonical semantic `Witness` happens off the GUI thread, producing `EguiCorrelatedCapture`.
+Conversion to the canonical semantic `Witness` happens off the GUI thread, producing `EguiCorrelatedCapture`.
 
-The correlated product therefore contains:
+The correlated product contains:
 
 - a canonical semantic `Witness`;
-- provisional egui paint evidence;
-- an explicit request ID;
+- provisional generic egui paint evidence;
+- provisional authored custom-paint evidence;
+- explicit request ID;
 - egui viewport ID;
 - egui cumulative pass number;
-- the full observed viewport rectangle.
+- full observed viewport rectangle.
 
-Its metadata records `semantic_paint_correlation: same_full_output`. That is a stronger claim than anything available by independently reading `egui_inspection` and the continuous paint stream.
+Its metadata records `semantic_paint_correlation: same_full_output`. When authored objects are present it also records that authored paint evidence consists of application semantics plus verified egui paint-handle binding.
 
 ### Viewport evidence
 
 The exact correlated path does **not** treat AccessKit root bounds as a viewport surrogate.
 
-Executable testing demonstrated a legitimate headless egui frame whose semantic root had no usable bounds while egui itself still had trustworthy viewport geometry. `EguiFrameProbe` therefore copies `InputState::viewport_rect()` from the same output-hook invocation and rejects invalid/non-finite geometry instead of guessing.
+Executable testing demonstrated a legitimate headless egui frame whose semantic root had no usable bounds while egui itself still had trustworthy viewport geometry. `EguiFrameProbe` therefore copies `InputState::viewport_rect()` and rejects invalid/non-finite geometry instead of guessing.
 
 The older external `InspectionObserver` semantic path still has only the upstream AccessKit tree available, so it derives viewport size from observed root bounds and errors when those bounds are unusable. That limitation belongs to that transport, not to the canonical model.
 
@@ -141,7 +189,7 @@ The v0 endpoint uses:
 
 `run_egui_capture_server` is blocking worker code. It owns the worker-side `EguiFrameProbe`, requests a repaint/capture, waits off-thread, converts off-thread, and serializes off-thread.
 
-`EguiCaptureObserver` is a read-only external client. End-to-end loopback tests prove that an external observer can block on one exact request while the main egui loop continues servicing passes and then receive semantic + paint evidence from one exact `FullOutput`.
+`EguiCaptureObserver` is a read-only external client. End-to-end loopback tests prove that an external observer can block on one exact request while the main egui loop continues servicing passes and then receive the complete correlated envelope.
 
 A request that cannot obtain a pass returns `TimedOut`; an unrelated protocol handshake is rejected.
 
@@ -151,11 +199,12 @@ A request that cannot obtain a pass returns `TimedOut`; an unrelated protocol ha
 
 `correlated_capture_to_agent_text` emits:
 
-1. a correlation header naming request, viewport, pass, viewport rectangle, paint count, and `same_full_output` basis;
+1. a correlation header naming request, viewport, pass, viewport rectangle, generic paint count, authored-object count, and `same_full_output` basis;
 2. the normal canonical semantic witness projection;
-3. one ordered line per paint submission, including bounds, clip evidence, and derived bounding-box visible fraction.
+3. one line per explicit authored object, including intended semantic provenance and observed binding provenance;
+4. one ordered line per generic paint submission, including bounds, clip evidence, and derived bounding-box visible fraction.
 
-The projection deliberately does **not** invent a semantic-node ↔ paint-shape identity mapping.
+The projection deliberately does **not** invent an AccessKit semantic-node ↔ paint-shape identity mapping.
 
 The unified CLI exposes exact capture with:
 
@@ -165,9 +214,9 @@ viewwitness capture-exact [address] [--agent|--yaml] [--derive]
 
 The default address is `127.0.0.1:5721`.
 
-- `--agent` prints the correlated agent projection;
-- `--yaml` serializes the complete correlated envelope, not merely the semantic witness;
-- `--derive` enriches deterministic geometry relations on the semantic `Witness` while leaving observed paint evidence untouched.
+- `--agent` prints all correlated evidence layers without collapsing them;
+- `--yaml` serializes the complete correlated envelope, including authored objects when present;
+- `--derive` enriches deterministic geometry relations on the canonical semantic `Witness` while leaving observed egui evidence untouched.
 
 ## Upstream inspection observer
 
@@ -185,19 +234,27 @@ The upstream protocol can also support input operations even though ViewWitness'
 
 ## Showcase as a live integration target
 
-The native eframe showcase is now wired as a real ViewWitness pressure target.
+The native eframe showcase is a real ViewWitness pressure target.
 
-At application startup it binds the two ViewWitness loopback listeners before normal UI execution. Through eframe's `CreationContext`, it installs the lightweight paint reporter and exact frame probe. The blocking server loops run on named worker threads.
+At application startup it binds the two ViewWitness loopback listeners before normal UI execution. Through eframe's `CreationContext`, it installs the lightweight paint reporter and exact frame probe. Blocking server loops run on named worker threads.
 
-The resulting live surfaces are:
+The live surfaces are:
 
 ```text
 127.0.0.1:5719  optional upstream egui_inspection semantic/raster endpoint
-127.0.0.1:5720  ViewWitness continuous paint stream
+127.0.0.1:5720  ViewWitness continuous generic paint stream
 127.0.0.1:5721  ViewWitness exact correlated capture request/response
 ```
 
-This establishes the intended integration pattern for other egui applications:
+The Canvas page now pressure-tests explicit authored custom paint. Its painted rectangle and circle use stable authored IDs and roles through `EguiPaintAnnotator`. The canvas background and text labels remain unannotated generic paint. An exact capture should therefore contain a mixture of:
+
+- ordinary AccessKit semantics;
+- generic anonymous renderer submissions;
+- exactly identified custom-painted objects where the application deliberately supplied identity.
+
+This is the desired epistemic behavior. Instrumentation grants identity only where there is an explicit source for that claim.
+
+The integration pattern for other egui applications is:
 
 ```text
 bind/start worker infrastructure before ordinary UI work
@@ -212,7 +269,7 @@ GUI pass: copy/emit bounded evidence only
 worker threads: wait, convert, derive, serialize, network, persist
 ```
 
-No listener accept loop, socket I/O, serialization, or capture waiting belongs on the render/UI thread.
+No listener accept loop, socket I/O, serialization, capture waiting, or expensive analysis belongs on the render/UI thread.
 
 ## Operator examples
 
@@ -229,13 +286,15 @@ $env:EGUI_INSPECTION="1"
 cargo run --example showcase --features showcase
 ```
 
-Request an exact correlated semantic + paint capture from another shell:
+Request an exact correlated capture from another shell:
 
 ```powershell
 cargo run --features egui --bin viewwitness -- capture-exact
 ```
 
-Request full YAML instead of the compact agent projection:
+On the Canvas page, the agent projection can now include lines such as authored objects for `showcase:painted-rectangle` and `showcase:painted-circle` in addition to generic paint submissions.
+
+Request full YAML instead:
 
 ```powershell
 cargo run --features egui --bin viewwitness -- capture-exact --yaml
@@ -255,20 +314,22 @@ cargo run --features observer --bin viewwitness -- screenshot witness.png --scal
 
 ## The remaining widget-to-paint gap
 
-egui internally has richer widget/layout data than AccessKit alone, and custom-painted canvas objects may have no semantic identity at all.
+The custom-canvas case has moved from “unknown” to “explicitly solvable when the application authors identity,” but the generic widget-to-paint problem remains open.
 
-Even with exact same-pass capture, ViewWitness still refuses to infer that semantic node X produced paint shape Y merely because labels or rectangles happen to coincide.
+ViewWitness still refuses to infer that AccessKit node X produced paint shape Y merely because labels, rectangles, or capture time coincide.
 
-A promising next path is **explicit application-authored paint identity**. egui's `Painter::add` returns a `ShapeIdx`, while a `Painter` exposes its `LayerId` and clip rectangle. That gives ViewWitness a way to let a custom application bind an authored object identity to the actual paint submission handle at creation time instead of reconstructing identity afterward.
+egui internally has richer widget/layout data than AccessKit alone, including `WidgetRect` / `WidgetRects`. The complete collection is not currently exposed through the same generic public capture path used here.
 
-This should remain provisional egui evidence until examples establish a backend-neutral concept. The semantics of such an object must also distinguish:
+The current authored custom-paint binding also proves only the actual **layer-local paint handle** and the final shape at that slot. ViewWitness does not yet claim a safe flattened `FullOutput` order for every annotated handle across all unusual layer-order/fallback cases.
 
-- application-declared identity/name/role;
-- observed paint-handle binding;
-- observed/derived bounds and clipping;
-- any later mapping from layer-local handle to flattened renderer order.
+That distinction matters:
 
-The showcase custom canvas is the first pressure case for this work.
+```text
+explicit custom object -> LayerId + ShapeIdx       proven for instrumented paint
+LayerId + ShapeIdx -> final layer-local shape      proven at on_end_pass
+arbitrary AccessKit node -> paint handle           not proven
+all paint handles -> flattened global order        not yet proven generally
+```
 
 ## Current architecture
 
@@ -287,7 +348,10 @@ worker: run_egui_paint_server ---------------------------------> :5720 continuou
 running egui/eframe app
         |
         | explicit capture request wakes repaint
-        | one output hook copies semantic + viewport + paint
+        | on_begin_pass activates requested capture
+        | UI may bind authored object -> LayerId + ShapeIdx
+        | on_end_pass verifies authored paint handles
+        | output_hook copies semantic + viewport + paint + authored evidence
         v
 EguiFrameProbe
         |
@@ -305,17 +369,18 @@ worker: run_egui_capture_server -------------------------------> :5721 request/r
 
 ## Agent boundary
 
-MCP is not the ViewWitness data model. `egui_inspection` is not the ViewWitness data model. AccessKit is not the ViewWitness data model. Paint observations are not the ViewWitness data model. Screenshots are not the ViewWitness data model.
+MCP is not the ViewWitness data model. `egui_inspection` is not the ViewWitness data model. AccessKit is not the ViewWitness data model. Generic paint observations are not the ViewWitness data model. Authored egui paint objects are not the ViewWitness data model. Screenshots are not the ViewWitness data model.
 
 They are evidence sources and integration surfaces around the canonical `Witness` representation.
 
 ## Next pressure points
 
-The next egui work should be driven by executable showcase cases:
+The next egui work should stay example-driven:
 
-1. establish the smallest explicit custom-paint annotation API that can bind an application-authored object to the actual `LayerId` + `ShapeIdx` returned by egui;
-2. determine whether that layer-local handle can be safely resolved to flattened `FullOutput` paint order without depending on unstable internals;
-3. test multi-shape authored objects, clipping, replacement via `Painter::set`, and overlapping authored objects;
-4. decide whether authored canvas objects belong only in egui-specific correlated evidence or eventually pressure a backend-neutral extension;
-5. continue improving application-authored identity for diff matching without hiding heuristic reconciliation;
-6. determine what stronger evidence would actually justify canonical clipping or occlusion relations.
+1. pressure one authored logical object composed of **multiple paint handles**;
+2. test authored objects under finite clipping and across different layers/windows;
+3. test handle reset/replacement semantics beyond the accepted `Painter::set` case;
+4. determine whether layer-local handles can be mapped safely to flattened `FullOutput` order without relying on unstable or incomplete assumptions;
+5. make authored-object transitions/diffs useful across exact captures while preserving authored-vs-observed provenance;
+6. decide whether repeated cross-backend pressure ever justifies promoting a generic “authored visual object” concept beyond the egui-specific correlated envelope;
+7. continue refusing canonical occlusion until stronger evidence than rectangle overlap exists.
