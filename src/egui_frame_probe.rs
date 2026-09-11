@@ -167,6 +167,7 @@ impl egui::Plugin for EguiFrameProbePlugin {
     }
 
     fn setup(&mut self, ctx: &egui::Context) {
+        // A requested correlated capture needs egui to emit semantic evidence.
         ctx.enable_accesskit();
     }
 
@@ -184,6 +185,9 @@ impl egui::Plugin for EguiFrameProbePlugin {
             return;
         }
 
+        // Capture eligibility is fixed at pass start. A request arriving halfway
+        // through a pass waits for the next repaint so explicit authored paint
+        // annotations cannot describe only a suffix of the captured frame.
         clear_pending_paint_objects(&self.pending_annotations);
         self.active_capture_request = Some(request_id);
         self.active_annotation_request
@@ -207,6 +211,8 @@ impl egui::Plugin for EguiFrameProbePlugin {
             return;
         };
 
+        // Mark this request handled before copying. A full response queue must
+        // never cause an implicit retry/repaint loop on later GUI passes.
         self.handled_request_id = request_id;
 
         let viewport_rect = ctx.input(|input| input.viewport_rect());
@@ -229,6 +235,8 @@ impl egui::Plugin for EguiFrameProbePlugin {
         match self.sender.try_send(evidence) {
             Ok(()) => {}
             Err(TrySendError::Full(_)) => {
+                // Surface loss to the waiting worker without blocking or
+                // retrying on the GUI thread.
                 self.state.dropped.store(request_id, Ordering::Release);
             }
             Err(TrySendError::Disconnected(_)) => {
@@ -238,6 +246,12 @@ impl egui::Plugin for EguiFrameProbePlugin {
     }
 }
 
+/// Handle for requesting exact same-pass semantic + paint evidence from egui.
+///
+/// Install this once for an `egui::Context`, then use the handle from worker
+/// code. A request only wakes egui; all waiting/conversion/serialization remains
+/// outside the GUI hook. Only one request may be pending through this handle at
+/// a time.
 pub struct EguiFrameProbe {
     ctx: egui::Context,
     state: Arc<ProbeState>,
@@ -249,6 +263,10 @@ pub struct EguiFrameProbe {
 }
 
 impl EguiFrameProbe {
+    /// Install the on-demand probe plugin and return its worker-side handle.
+    ///
+    /// A requested response capacity of zero is promoted to one so delivery
+    /// never depends on a receiver rendezvous at the exact output-hook instant.
     #[must_use]
     pub fn install(ctx: &egui::Context, response_capacity: usize) -> Self {
         let state = Arc::new(ProbeState::default());
@@ -278,6 +296,10 @@ impl EguiFrameProbe {
         }
     }
 
+    /// Return a lightweight application-side annotator tied to this exact probe.
+    ///
+    /// The annotator may be cloned and kept by UI code after the worker-side
+    /// probe itself is moved into a capture server thread.
     #[must_use]
     pub fn annotator(&self) -> EguiPaintAnnotator {
         EguiPaintAnnotator::new(
@@ -286,6 +308,11 @@ impl EguiFrameProbe {
         )
     }
 
+    /// Request one correlated capture and wake an idle egui integration.
+    ///
+    /// This method does not wait for or process GUI output. Call
+    /// [`Self::recv_timeout`] later, normally from worker code after egui has
+    /// produced another pass.
     pub fn request_capture(&mut self) -> io::Result<u64> {
         if self.pending_request_id.is_some() {
             return Err(io::Error::new(
@@ -305,6 +332,12 @@ impl EguiFrameProbe {
         Ok(request_id)
     }
 
+    /// Wait for the currently pending capture request.
+    ///
+    /// Stale responses from requests that previously timed out are discarded.
+    /// If the GUI hook had to drop the current response because the bounded
+    /// response queue was full, this returns `WouldBlock` rather than hiding
+    /// the loss or retrying work on the render thread.
     pub fn recv_timeout(&mut self, timeout: Duration) -> io::Result<EguiFrameEvidence> {
         let request_id = self.pending_request_id.ok_or_else(|| {
             io::Error::new(
@@ -341,7 +374,10 @@ impl EguiFrameProbe {
                     self.pending_request_id = None;
                     return Ok(evidence);
                 }
-                Ok(evidence) if evidence.request_id < request_id => {}
+                Ok(evidence) if evidence.request_id < request_id => {
+                    // A response can arrive after its caller timed out. It is
+                    // stale evidence for this request and must not be relabeled.
+                }
                 Ok(evidence) => {
                     self.pending_request_id = None;
                     return Err(io::Error::new(
@@ -364,6 +400,11 @@ impl EguiFrameProbe {
         }
     }
 
+    /// Request and wait for one exact same-pass semantic + paint capture.
+    ///
+    /// The application must continue servicing egui while this blocks. In a
+    /// native application this convenience method therefore belongs on a worker
+    /// thread, never the GUI/render thread.
     pub fn capture_timeout(&mut self, timeout: Duration) -> io::Result<EguiFrameEvidence> {
         self.request_capture()?;
         self.recv_timeout(timeout)
