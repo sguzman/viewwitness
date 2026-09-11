@@ -12,8 +12,8 @@ use egui::accesskit::TreeUpdate;
 use serde_json::json;
 
 use crate::{
-    EguiCaptureContext, EguiPaintObservation, Viewport, Witness, paint_observations_from_egui_output,
-    witness_from_egui_tree_update,
+    EguiCaptureContext, EguiPaintObservation, Viewport, Witness,
+    paint_observations_from_egui_output, witness_from_egui_tree_update,
 };
 
 const DROP_POLL_INTERVAL: Duration = Duration::from_millis(10);
@@ -75,10 +75,10 @@ impl EguiFrameEvidence {
             &update,
             EguiCaptureContext::new(viewport).with_frame(self.pass_nr),
         );
-        witness.capture.metadata.insert(
-            "transport".into(),
-            json!("viewwitness_egui_frame_probe"),
-        );
+        witness
+            .capture
+            .metadata
+            .insert("transport".into(), json!("viewwitness_egui_frame_probe"));
         witness
             .capture
             .metadata
