@@ -194,32 +194,36 @@ fn authored_custom_paint_binds_identity_to_real_shape_slots_not_geometry() {
         .iter()
         .find(|object| object.id == "canvas:second")
         .expect("second authored object");
+    let first_binding = first.bindings.first().expect("first binding");
+    let second_binding = second.bindings.first().expect("second binding");
 
     assert_eq!(first.semantic_evidence, "intended");
-    assert_eq!(first.binding_evidence, "observed");
-    assert_eq!(first.layer_order, EguiLayerOrder::Background);
-    assert!(first.verified_at_end_pass);
+    assert_eq!(first.bindings.len(), 1);
+    assert_eq!(first_binding.binding_evidence, "observed");
+    assert_eq!(first_binding.layer_order, EguiLayerOrder::Background);
+    assert!(first_binding.verified_at_end_pass);
     assert_eq!(
-        first.shape_index,
+        first_binding.shape_index,
         first_shape_index.expect("first shape index")
     );
-    assert_eq!(first.kind, Some(EguiPaintKind::Circle));
+    assert_eq!(first_binding.kind, Some(EguiPaintKind::Circle));
 
     assert_eq!(second.semantic_evidence, "intended");
-    assert_eq!(second.binding_evidence, "observed");
-    assert_eq!(second.layer_order, EguiLayerOrder::Background);
-    assert!(second.verified_at_end_pass);
+    assert_eq!(second.bindings.len(), 1);
+    assert_eq!(second_binding.binding_evidence, "observed");
+    assert_eq!(second_binding.layer_order, EguiLayerOrder::Background);
+    assert!(second_binding.verified_at_end_pass);
     assert_eq!(
-        second.shape_index,
+        second_binding.shape_index,
         second_shape_index.expect("second shape index")
     );
-    assert_eq!(second.kind, Some(EguiPaintKind::Rect));
+    assert_eq!(second_binding.kind, Some(EguiPaintKind::Rect));
 
     assert_ne!(
-        first.shape_index, second.shape_index,
+        first_binding.shape_index, second_binding.shape_index,
         "overlapping identical bounds must remain distinct through exact paint handles"
     );
-    assert_eq!(first.bounds, second.bounds);
+    assert_eq!(first_binding.bounds, second_binding.bounds);
 
     let capture = evidence
         .into_correlated_capture()
@@ -227,65 +231,81 @@ fn authored_custom_paint_binds_identity_to_real_shape_slots_not_geometry() {
     assert_eq!(capture.authored_objects.len(), 2);
     assert_eq!(
         capture.witness.capture.metadata["authored_paint_evidence"],
-        serde_json::json!("application_semantics_plus_verified_egui_paint_handle")
+        serde_json::json!("application_semantics_plus_verified_egui_paint_handles")
     );
 }
 
 #[test]
-fn authored_custom_paint_preserves_final_clip_and_derives_visibility() {
-    use egui::epaint::RectShape;
+fn explicit_multi_shape_object_keeps_one_identity_and_per_binding_clip_evidence() {
+    use egui::epaint::{CircleShape, RectShape};
 
     let ctx = egui::Context::default();
     let mut probe = EguiFrameProbe::install(&ctx, 1);
     let annotator = probe.annotator();
-    probe.request_capture().expect("request clipped capture");
+    probe.request_capture().expect("request composite capture");
 
     let bounds = egui::Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(40.0, 40.0));
-    let clip = egui::Rect::from_min_size(egui::pos2(30.0, 20.0), egui::vec2(20.0, 40.0));
+    let half_clip = egui::Rect::from_min_size(egui::pos2(30.0, 20.0), egui::vec2(20.0, 40.0));
+    let mut expected_indices = Vec::new();
 
     let output = ctx.run_ui(test_input(), |ui| {
-        let painter = ui.painter().with_clip_rect(clip);
-        annotator.add_shape(
-            &painter,
-            EguiPaintObjectDescriptor::new("canvas:clipped", "diagram_node")
-                .with_name("Clipped node"),
-            RectShape::filled(bounds, 0.0, egui::Color32::WHITE),
+        let painter = ui.painter().clone();
+        let clipped_painter = painter.with_clip_rect(half_clip);
+
+        annotator.paint_object(
+            EguiPaintObjectDescriptor::new("canvas:composite", "diagram_node")
+                .with_name("Composite node"),
+            |object| {
+                let body = object.add_shape(
+                    &painter,
+                    RectShape::filled(bounds, 0.0, egui::Color32::DARK_GRAY),
+                );
+                expected_indices.push(body.0);
+
+                let accent = object.add_shape(
+                    &clipped_painter,
+                    CircleShape {
+                        center: bounds.center(),
+                        radius: 20.0,
+                        fill: egui::Color32::WHITE,
+                        stroke: egui::Stroke::NONE,
+                    },
+                );
+                expected_indices.push(accent.0);
+            },
         );
     });
 
     let evidence = probe
         .recv_timeout(Duration::from_millis(100))
-        .expect("receive clipped authored evidence");
+        .expect("receive composite authored evidence");
     output.drop_without_applying_deltas();
 
+    assert_eq!(evidence.authored_objects.len(), 1);
     let object = evidence
         .authored_objects
-        .iter()
-        .find(|object| object.id == "canvas:clipped")
-        .expect("clipped authored object");
+        .first()
+        .expect("one explicit composite object");
+    assert_eq!(object.id, "canvas:composite");
+    assert_eq!(object.role, "diagram_node");
+    assert_eq!(object.name.as_deref(), Some("Composite node"));
+    assert_eq!(object.semantic_evidence, "intended");
+    assert_eq!(object.bindings.len(), 2);
 
-    assert!(object.verified_at_end_pass);
-    assert_eq!(object.kind, Some(EguiPaintKind::Rect));
+    let body = &object.bindings[0];
+    let accent = &object.bindings[1];
+    assert_eq!(body.shape_index, expected_indices[0]);
+    assert_eq!(accent.shape_index, expected_indices[1]);
+    assert_ne!(body.shape_index, accent.shape_index);
+    assert!(body.verified_at_end_pass);
+    assert!(accent.verified_at_end_pass);
+    assert_eq!(body.kind, Some(EguiPaintKind::Rect));
+    assert_eq!(accent.kind, Some(EguiPaintKind::Circle));
+    assert_eq!(body.bounds, accent.bounds);
+
+    assert_eq!(body.visible_fraction(), 1.0);
     assert_eq!(
-        object.bounds,
-        Some(Rect {
-            x: 10.0,
-            y: 20.0,
-            width: 40.0,
-            height: 40.0,
-        })
-    );
-    assert_eq!(
-        object.clip_rect,
-        Some(Rect {
-            x: 30.0,
-            y: 20.0,
-            width: 20.0,
-            height: 40.0,
-        })
-    );
-    assert_eq!(
-        object.visible_bounds(),
+        accent.clip_rect,
         Some(Rect {
             x: 30.0,
             y: 20.0,
@@ -293,7 +313,56 @@ fn authored_custom_paint_preserves_final_clip_and_derives_visibility() {
             height: 40.0,
         })
     );
-    assert_eq!(object.visible_fraction(), 0.5);
+    assert_eq!(
+        accent.visible_bounds(),
+        Some(Rect {
+            x: 30.0,
+            y: 20.0,
+            width: 20.0,
+            height: 40.0,
+        })
+    );
+    assert_eq!(accent.visible_fraction(), 0.5);
+}
+
+#[test]
+fn duplicate_ids_are_not_implicitly_grouped_across_independent_annotations() {
+    use egui::epaint::RectShape;
+
+    let ctx = egui::Context::default();
+    let mut probe = EguiFrameProbe::install(&ctx, 1);
+    let annotator = probe.annotator();
+    probe.request_capture().expect("request duplicate-id capture");
+
+    let first_rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(20.0, 20.0));
+    let second_rect = egui::Rect::from_min_size(egui::pos2(40.0, 10.0), egui::vec2(20.0, 20.0));
+
+    let output = ctx.run_ui(test_input(), |ui| {
+        annotator.add_shape(
+            ui.painter(),
+            EguiPaintObjectDescriptor::new("duplicate", "first"),
+            RectShape::filled(first_rect, 0.0, egui::Color32::WHITE),
+        );
+        annotator.add_shape(
+            ui.painter(),
+            EguiPaintObjectDescriptor::new("duplicate", "second"),
+            RectShape::filled(second_rect, 0.0, egui::Color32::GRAY),
+        );
+    });
+
+    let evidence = probe
+        .recv_timeout(Duration::from_millis(100))
+        .expect("receive duplicate-id evidence");
+    output.drop_without_applying_deltas();
+
+    assert_eq!(evidence.authored_objects.len(), 2);
+    assert!(
+        evidence
+            .authored_objects
+            .iter()
+            .all(|object| object.id == "duplicate" && object.bindings.len() == 1),
+        "repeated authored IDs must remain two explicit object records unless the application grouped them"
+    );
 }
 
 #[test]
