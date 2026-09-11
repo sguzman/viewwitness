@@ -102,7 +102,11 @@ impl EguiCaptureObserver {
     }
 
     fn read_handshake(&mut self) -> io::Result<()> {
-        let line = read_bounded_line(&mut self.reader, MAX_REQUEST_BYTES, "egui capture handshake")?;
+        let line = read_bounded_line(
+            &mut self.reader,
+            MAX_REQUEST_BYTES,
+            "egui capture handshake",
+        )?;
         let expected = format!("{EGUI_CAPTURE_PROTOCOL_MAGIC} {EGUI_CAPTURE_PROTOCOL_VERSION}");
         if line == expected.as_bytes() {
             Ok(())
@@ -118,8 +122,13 @@ impl EguiCaptureObserver {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 enum CaptureResponse {
-    Ok { capture: EguiCorrelatedCapture },
-    Error { kind: WireErrorKind, message: String },
+    Ok {
+        capture: EguiCorrelatedCapture,
+    },
+    Error {
+        kind: WireErrorKind,
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -170,11 +179,12 @@ fn serve_client(
     write_handshake(&mut writer)?;
 
     loop {
-        let request = match read_bounded_line(&mut reader, MAX_REQUEST_BYTES, "egui capture request") {
-            Ok(request) => request,
-            Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
-            Err(error) => return Err(error),
-        };
+        let request =
+            match read_bounded_line(&mut reader, MAX_REQUEST_BYTES, "egui capture request") {
+                Ok(request) => request,
+                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
+                Err(error) => return Err(error),
+            };
 
         if request != CAPTURE_COMMAND {
             return Err(io::Error::new(
