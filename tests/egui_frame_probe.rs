@@ -39,8 +39,6 @@ fn requested_probe_captures_semantics_paint_and_viewport_from_one_exact_output()
         .recv_timeout(Duration::from_millis(100))
         .expect("receive exact same-pass evidence");
 
-    // Dispose renderer-owned texture deltas before any assertion/conversion can
-    // panic so a useful test failure is not obscured by egui's drop guard.
     output.drop_without_applying_deltas();
 
     assert_eq!(evidence.request_id, request_id);
@@ -162,9 +160,6 @@ fn authored_custom_paint_binds_identity_to_real_shape_slots_not_geometry() {
         );
         first_shape_index = Some(first.0);
 
-        // Replace the exact paint slot after annotation. End-of-pass resolution
-        // must report the final circle, proving that the binding follows egui's
-        // real handle rather than remembering the originally submitted geometry.
         painter.set(
             first,
             CircleShape {
@@ -237,6 +232,71 @@ fn authored_custom_paint_binds_identity_to_real_shape_slots_not_geometry() {
 }
 
 #[test]
+fn authored_custom_paint_preserves_final_clip_and_derives_visibility() {
+    use egui::epaint::RectShape;
+
+    let ctx = egui::Context::default();
+    let mut probe = EguiFrameProbe::install(&ctx, 1);
+    let annotator = probe.annotator();
+    probe.request_capture().expect("request clipped capture");
+
+    let bounds = egui::Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(40.0, 40.0));
+    let clip = egui::Rect::from_min_size(egui::pos2(30.0, 20.0), egui::vec2(20.0, 40.0));
+
+    let output = ctx.run_ui(test_input(), |ui| {
+        let painter = ui.painter().with_clip_rect(clip);
+        annotator.add_shape(
+            &painter,
+            EguiPaintObjectDescriptor::new("canvas:clipped", "diagram_node")
+                .with_name("Clipped node"),
+            RectShape::filled(bounds, 0.0, egui::Color32::WHITE),
+        );
+    });
+
+    let evidence = probe
+        .recv_timeout(Duration::from_millis(100))
+        .expect("receive clipped authored evidence");
+    output.drop_without_applying_deltas();
+
+    let object = evidence
+        .authored_objects
+        .iter()
+        .find(|object| object.id == "canvas:clipped")
+        .expect("clipped authored object");
+
+    assert!(object.verified_at_end_pass);
+    assert_eq!(object.kind, Some(EguiPaintKind::Rect));
+    assert_eq!(
+        object.bounds,
+        Some(Rect {
+            x: 10.0,
+            y: 20.0,
+            width: 40.0,
+            height: 40.0,
+        })
+    );
+    assert_eq!(
+        object.clip_rect,
+        Some(Rect {
+            x: 30.0,
+            y: 20.0,
+            width: 20.0,
+            height: 40.0,
+        })
+    );
+    assert_eq!(
+        object.visible_bounds(),
+        Some(Rect {
+            x: 30.0,
+            y: 20.0,
+            width: 20.0,
+            height: 40.0,
+        })
+    );
+    assert_eq!(object.visible_fraction(), 0.5);
+}
+
+#[test]
 fn annotations_are_not_collected_on_unrequested_passes() {
     use egui::epaint::RectShape;
 
@@ -280,8 +340,6 @@ fn full_probe_response_queue_drops_request_instead_of_blocking_gui_pass() {
         .expect_err("first request intentionally times out before a GUI pass");
     assert_eq!(timeout.kind(), ErrorKind::TimedOut);
 
-    // The timed-out request is still observed by the next pass, so its now-stale
-    // response occupies the one-slot queue.
     let stale_output = ctx.run_ui(test_input(), |ui| {
         ui.label("stale response");
     });
