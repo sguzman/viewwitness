@@ -78,7 +78,7 @@ The correlated path does **not** derive viewport size from AccessKit root bounds
 
 ### Explicit custom-paint identity
 
-Custom canvas graphics may have no useful AccessKit identity. ViewWitness now supports a narrow, explicit solution without post-hoc inference.
+Custom canvas graphics may have no useful AccessKit identity. ViewWitness supports a narrow, explicit solution without post-hoc inference.
 
 `EguiPaintAnnotator` lets application code assign an object ID, role, and optional name while adding a shape through egui. ViewWitness records the actual `LayerId + ShapeIdx` returned by egui and verifies that exact slot at `on_end_pass`, after ordinary UI painting but before egui drains graphic layers into `FullOutput`.
 
@@ -90,6 +90,8 @@ paint-handle binding        observed egui execution evidence
 ```
 
 Executable tests deliberately place two authored objects at identical overlapping geometry; they remain distinct by real paint handle. Another test replaces an annotated rectangle through `Painter::set`, and ViewWitness observes the final **circle** occupying that same slot. This proves the binding follows egui's handle rather than geometry matching or the initially submitted shape.
+
+The final verified handle also preserves its finite clip evidence. Authored objects expose the same explicitly-derived bounding-box `visible_bounds` / `visible_fraction` semantics as generic paint. A 40×40 authored rectangle clipped to a surviving 20×40 half is proven as `visible_fraction = 0.5`; that is bounding-box survival, not a claim about exact painted pixels.
 
 This does **not** solve the generic AccessKit-node ↔ paint-shape problem. Ordinary widgets and unannotated paint remain separate evidence unless a source explicitly supplies their identity relationship.
 
@@ -177,6 +179,7 @@ ViewWitness has moved beyond format-only exploration. The current project has:
 - `viewwitness capture-exact` with agent-text and full-envelope YAML output;
 - explicit custom-paint object identity bound to verified egui layer-local paint handles;
 - executable tests proving handle identity survives identical geometry and observes `Painter::set` replacement;
+- derived authored-object clip visibility backed by final end-of-pass bounds + clip evidence;
 - a living native eframe showcase with worker-hosted `:5720` and `:5721` services and an annotated Canvas pressure case;
 - a read-only external `egui_inspection` semantic/raster observer;
 - loopback integration tests for live protocol framing and exact CLI capture;
@@ -184,7 +187,7 @@ ViewWitness has moved beyond format-only exploration. The current project has:
 
 The v0 schema is still intentionally provisional. Paint and authored-object evidence remain egui-specific rather than being prematurely promoted into the cross-backend `Witness` schema.
 
-The next pressure is narrower now: multi-shape authored objects, clipping/layer behavior, cross-frame authored-object diffs, and whether a layer-local paint handle can be mapped safely to flattened renderer order without relying on unstable or incomplete assumptions.
+The next pressure is narrower now: **multi-shape authored objects**, multiple layers/windows, handle reset/removal behavior, cross-frame authored-object diffs, and whether a layer-local paint handle can be mapped safely to flattened renderer order without relying on unstable or incomplete assumptions.
 
 ## Non-goals for the first phase
 
