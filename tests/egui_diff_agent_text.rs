@@ -66,7 +66,12 @@ fn handle_churn_alone_projects_as_materially_empty() {
     };
 
     let text = correlated_diff_to_agent_text(&diff);
-    assert!(text.lines().next().unwrap().ends_with("materially_empty=true"));
+    assert!(
+        text.lines()
+            .next()
+            .unwrap()
+            .ends_with("materially_empty=true")
+    );
     assert!(text.contains("material=false"));
 }
 
