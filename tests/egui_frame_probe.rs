@@ -2,10 +2,7 @@
 
 use std::{io::ErrorKind, time::Duration};
 
-use viewwitness::{
-    EguiCaptureContext, EguiFrameProbe, EguiPaintKind, Rect, Viewport,
-    paint_observations_from_egui_output, witness_from_egui_tree_update,
-};
+use viewwitness::{EguiFrameProbe, EguiPaintKind, Rect, paint_observations_from_egui_output};
 
 #[test]
 fn requested_probe_captures_semantics_and_paint_from_one_exact_output() {
@@ -67,21 +64,28 @@ fn requested_probe_captures_semantics_and_paint_from_one_exact_output() {
         "the copied semantic tree contains the same frame's button identity"
     );
 
-    let witness = witness_from_egui_tree_update(
-        captured_tree,
-        EguiCaptureContext::new(Viewport {
-            width: 200.0,
-            height: 120.0,
-            scale_factor: evidence.pixels_per_point,
-        })
-        .with_frame(evidence.pass_nr),
+    let capture = evidence
+        .into_correlated_capture()
+        .expect("convert same-pass evidence off the GUI hook");
+    assert_eq!(capture.request_id, request_id);
+    assert_eq!(capture.pass_nr, ctx.cumulative_pass_nr());
+    assert_eq!(capture.paint, expected_paint);
+    assert_eq!(capture.witness.capture.frame, Some(capture.pass_nr));
+    assert_eq!(
+        capture.witness.capture.metadata["frame_clock"],
+        serde_json::json!("egui_cumulative_pass_nr")
+    );
+    assert_eq!(
+        capture.witness.capture.metadata["semantic_paint_correlation"],
+        serde_json::json!("same_full_output")
     );
     assert!(
-        witness
+        capture
+            .witness
             .nodes
             .iter()
             .any(|node| node.name.as_deref() == Some("Apply")),
-        "raw same-pass semantic evidence remains convertible off the GUI hook"
+        "same-pass semantic evidence becomes a canonical witness"
     );
 
     output.drop_without_applying_deltas();
