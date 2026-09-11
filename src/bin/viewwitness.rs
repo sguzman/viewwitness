@@ -23,6 +23,7 @@ fn run() -> io::Result<()> {
         "derive" => derive_command(args.collect()),
         "diff" => diff_command(args.collect()),
         "capture" => capture_command(args.collect()),
+        "capture-exact" => capture_exact_command(args.collect()),
         "screenshot" => screenshot_command(args.collect()),
         "help" | "--help" | "-h" => {
             print_usage();
@@ -141,6 +142,56 @@ fn capture_command(args: Vec<String>) -> io::Result<()> {
 fn capture_command(_args: Vec<String>) -> io::Result<()> {
     Err(invalid(
         "live capture requires the `observer` feature; rebuild with `--features observer`",
+    ))
+}
+
+#[cfg(feature = "egui")]
+fn capture_exact_command(args: Vec<String>) -> io::Result<()> {
+    use viewwitness::{
+        DEFAULT_EGUI_CAPTURE_ADDR, EguiCaptureObserver, correlated_capture_to_agent_text,
+    };
+
+    let mut addr = None;
+    let mut mode = OutputMode::Agent;
+    let mut derive = false;
+
+    for arg in args {
+        match arg.as_str() {
+            "--agent" => mode = OutputMode::Agent,
+            "--yaml" => mode = OutputMode::Yaml,
+            "--derive" => derive = true,
+            _ if arg.starts_with('-') => {
+                return Err(invalid(format!("unknown capture-exact option {arg:?}")));
+            }
+            _ if addr.is_none() => addr = Some(arg),
+            _ => return Err(invalid("only one exact-capture address may be supplied")),
+        }
+    }
+
+    let addr = addr.unwrap_or_else(|| DEFAULT_EGUI_CAPTURE_ADDR.to_owned());
+    let mut observer = EguiCaptureObserver::connect(&addr)?;
+    let mut capture = observer.capture()?;
+    validate_witness(&capture.witness)?;
+    if derive {
+        enrich_geometry(&mut capture.witness);
+    }
+
+    match mode {
+        OutputMode::Agent => print!("{}", correlated_capture_to_agent_text(&capture)),
+        OutputMode::Yaml => {
+            let yaml = serde_yaml_ng::to_string(&capture).map_err(|error| {
+                io::Error::other(format!("failed to serialize correlated capture YAML: {error}"))
+            })?;
+            print!("{yaml}");
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "egui"))]
+fn capture_exact_command(_args: Vec<String>) -> io::Result<()> {
+    Err(invalid(
+        "exact correlated capture requires the `egui` feature; rebuild with `--features egui`",
     ))
 }
 
@@ -281,9 +332,11 @@ fn print_usage() {
            viewwitness derive <file> [--agent|--yaml]\n\
            viewwitness diff <before> <after> [--agent|--yaml]\n\
            viewwitness capture [address] [--agent|--yaml] [--derive] [--settle=N]\n\
+           viewwitness capture-exact [address] [--agent|--yaml] [--derive]\n\
            viewwitness screenshot <output.png> [--address=HOST:PORT] [--scale=N]\n\
          \n\
-         Agent text is the default output for inspect, derive, diff, and capture.\n\
-         Screenshots are separate raster evidence and are not frame-correlated with witnesses."
+         Agent text is the default output for inspect, derive, diff, capture, and capture-exact.\n\
+         `capture` reads semantic state through egui_inspection; `capture-exact` reads ViewWitness's\n\
+         same-pass semantic + viewport + paint evidence. Screenshots remain separate raster evidence."
     );
 }
