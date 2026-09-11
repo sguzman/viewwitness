@@ -14,12 +14,22 @@ pub struct SettleResult {
     pub steps: u64,
 }
 
+/// Raster evidence returned by the egui inspection screenshot endpoint.
+///
+/// This is supporting evidence around a witness, not a semantic GUI model. The
+/// bytes are preserved exactly as the peer supplied them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenshotEvidence {
+    pub size: [u32; 2],
+    pub png_bytes: Vec<u8>,
+}
+
 /// Read-only client for the egui inspection protocol.
 ///
-/// The observer lives outside the GUI process. It requests fresh semantic state
-/// and converts that observed frame into the canonical ViewWitness model;
-/// serialization, diffing, and further analysis can therefore happen entirely
-/// off the GUI thread.
+/// The observer lives outside the GUI process. It requests fresh semantic or
+/// raster state and converts semantic frames into the canonical ViewWitness
+/// model; serialization, diffing, persistence, and further analysis can
+/// therefore happen entirely off the GUI thread.
 pub struct InspectionObserver {
     stream: TcpStream,
 }
@@ -90,6 +100,41 @@ impl InspectionObserver {
                 .transpose(),
             Response::Error { message } => Err(peer_error(message)),
             other => Err(unexpected_response("GetTree", other)),
+        }
+    }
+
+    /// Request a PNG screenshot from the inspected application.
+    ///
+    /// `pixels_per_point` asks the peer to downscale to that many pixels per
+    /// logical point. `None` requests native framebuffer resolution. ViewWitness
+    /// preserves the PNG bytes and dimensions without interpreting them.
+    ///
+    /// # Errors
+    /// Returns an error for an invalid requested scale, transport/protocol
+    /// failures, peer-side errors, or an unexpected response variant.
+    pub fn screenshot(&mut self, pixels_per_point: Option<f32>) -> io::Result<ScreenshotEvidence> {
+        if let Some(scale) = pixels_per_point
+            && (!scale.is_finite() || scale <= 0.0)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "screenshot pixels_per_point must be finite and positive",
+            ));
+        }
+
+        write_message(
+            &mut self.stream,
+            &Request::GetScreenshot { pixels_per_point },
+        )?;
+        let response: Response = read_message(&mut self.stream)?;
+
+        match response {
+            Response::Screenshot(png) => Ok(ScreenshotEvidence {
+                size: png.size,
+                png_bytes: png.bytes,
+            }),
+            Response::Error { message } => Err(peer_error(message)),
+            other => Err(unexpected_response("GetScreenshot", other)),
         }
     }
 
