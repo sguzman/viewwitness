@@ -8,6 +8,8 @@ mod diff;
 #[cfg(feature = "egui")]
 mod egui_capture;
 #[cfg(feature = "egui")]
+mod egui_capture_transport;
+#[cfg(feature = "egui")]
 mod egui_frame_probe;
 #[cfg(feature = "egui")]
 mod egui_paint;
@@ -26,6 +28,11 @@ pub use diff::{FieldChange, NodeChange, ViewportChange, WitnessDiff, diff_witnes
 #[cfg(feature = "egui")]
 pub use egui_capture::{
     EguiCaptureContext, witness_from_egui_output, witness_from_egui_tree_update,
+};
+#[cfg(feature = "egui")]
+pub use egui_capture_transport::{
+    DEFAULT_EGUI_CAPTURE_ADDR, EGUI_CAPTURE_PROTOCOL_MAGIC, EGUI_CAPTURE_PROTOCOL_VERSION,
+    EguiCaptureObserver, MAX_EGUI_CAPTURE_MESSAGE_BYTES, run_egui_capture_server,
 };
 #[cfg(feature = "egui")]
 pub use egui_frame_probe::{EguiCorrelatedCapture, EguiFrameEvidence, EguiFrameProbe};
