@@ -7,6 +7,8 @@ mod agent_text;
 mod diff;
 #[cfg(feature = "egui")]
 mod egui_capture;
+#[cfg(feature = "egui")]
+mod egui_paint;
 mod format;
 mod geometry;
 #[cfg(feature = "observer")]
@@ -19,6 +21,8 @@ pub use diff::{FieldChange, NodeChange, ViewportChange, WitnessDiff, diff_witnes
 pub use egui_capture::{
     EguiCaptureContext, witness_from_egui_output, witness_from_egui_tree_update,
 };
+#[cfg(feature = "egui")]
+pub use egui_paint::{EguiPaintObservation, paint_observations_from_egui_output};
 pub use format::{diff_from_yaml, diff_to_yaml, from_yaml, to_yaml};
 pub use geometry::{
     GeometryOptions, derive_geometry_relations, derive_geometry_relations_with_options,
