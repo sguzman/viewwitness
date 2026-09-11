@@ -54,7 +54,10 @@ fn requested_probe_captures_semantics_and_paint_from_one_exact_output() {
                 }
     }));
 
-    let captured_tree = evidence.accesskit.as_ref().expect("semantic evidence copied");
+    let captured_tree = evidence
+        .accesskit
+        .as_ref()
+        .expect("semantic evidence copied");
     assert_eq!(captured_tree.nodes.len(), expected_tree.nodes.len());
     assert!(
         captured_tree
