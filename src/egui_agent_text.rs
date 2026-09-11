@@ -69,10 +69,7 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
 }
 
 fn rect(rect: Rect) -> String {
-    format!(
-        "[{},{},{},{}]",
-        rect.x, rect.y, rect.width, rect.height
-    )
+    format!("[{},{},{},{}]", rect.x, rect.y, rect.width, rect.height)
 }
 
 fn json(value: &impl Serialize) -> String {
