@@ -28,7 +28,7 @@ pub use egui_capture::{
     EguiCaptureContext, witness_from_egui_output, witness_from_egui_tree_update,
 };
 #[cfg(feature = "egui")]
-pub use egui_frame_probe::{EguiFrameEvidence, EguiFrameProbe};
+pub use egui_frame_probe::{EguiCorrelatedCapture, EguiFrameEvidence, EguiFrameProbe};
 #[cfg(feature = "egui")]
 pub use egui_paint::{EguiPaintKind, EguiPaintObservation, paint_observations_from_egui_output};
 #[cfg(feature = "egui")]
