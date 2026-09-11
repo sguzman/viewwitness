@@ -18,11 +18,9 @@ M0 is no longer a blocking phase, but corpus expansion continues throughout the 
 
 ## M1 — geometry and relation derivation
 
-**Useful first slice established; remaining work is now driven by real egui evidence.**
+**Useful first slice established; remaining work is driven by real capture evidence.**
 
-Teach ViewWitness to derive deterministic facts from captured geometry rather than hand-authoring them in fixtures.
-
-Implemented first slice:
+Implemented:
 
 - positive-area `overlaps` with intersection dimensions, area, and per-node fractions;
 - `left_of` and `above` for axis-separated nodes with projection overlap;
@@ -32,52 +30,61 @@ Implemented first slice:
 - optional cross-parent and hidden-node participation;
 - stronger finite/non-negative geometry validation.
 
-Intentional decisions from corpus pressure:
+Intentional decisions:
 
-- do not emit redundant inverse pairs (`left_of` does not require an additional `right_of` fact);
-- do not derive `occludes` from overlap alone because z-order/paint evidence is required;
-- do not pretend bare rectangles are enough for robust clipping while scroll and clip coordinate spaces remain underspecified;
+- do not emit redundant inverse relation pairs;
+- do not derive `occludes` from overlap alone;
+- do not pretend bare semantic rectangles are enough for robust clipping;
 - do not derive every possible pair by default because relation clouds become hostile to human and agent consumption.
 
-Remaining candidates are intentionally coupled to M2 capture work:
+The egui paint probe now provides a second geometry source: renderer-facing shape bounds plus observed clip rectangles. It can derive bounding-box clip survival, including partial and fully clipped paint submissions. This evidence remains egui-specific research data rather than canonical node geometry until a trustworthy semantic/widget association exists.
 
-- viewport intersection and visible fraction;
-- explicit clip rectangles / coordinate-space model;
-- clipping derivation once the above exists;
-- a carefully named geometric containment relation if corpus pressure justifies it;
+Remaining candidates:
+
+- viewport intersection and node-level visible fraction when backed by honest coordinate/clip evidence;
+- explicit coordinate-space and clip semantics;
+- clipping relations once semantic/widget linkage is available;
+- carefully named paint-order diagnostics weaker than full occlusion;
 - relation pruning or analysis profiles for different consumption budgets.
 
 Derived facts must remain epistemically marked as derived.
 
 ## M2 — egui capture + living showcase
 
-**Core semantic and live-observation slice established; rendered-evidence expansion remains active.**
+**Core semantic capture, external observation, and first rendered-evidence probes established.**
 
-Established:
+Established semantic/live slice:
 
-- optional `egui` crate feature so the canonical core remains usable without toolkit dependencies;
+- optional `egui` feature so the canonical core remains usable without toolkit dependencies;
 - `EguiCaptureContext` plus conversion from `egui::FullOutput` and egui-produced AccessKit `TreeUpdate`;
 - semantic hierarchy reconstruction from AccessKit child relationships;
 - role, name/text/value, bounds, visibility, enabled/disabled, focus, selection, toggle state, actions, and selected semantic-property mapping;
 - observed `labels`, `describes`, and `controls` relations;
 - deterministic node/relation ordering;
 - capture provenance identifying egui + AccessKit;
-- explicit identity provenance and stability rather than assuming backend IDs are permanent conceptual identities;
-- an executable identity probe demonstrating ordinary state stability and structure-sensitive auto identity;
-- headless tests using both constructed AccessKit trees and actual egui frame output;
-- end-to-end `examples/egui_capture.rs` that emits ViewWitness YAML from a real headless egui frame;
-- a living native eframe showcase with controls, tables, scrolling, overlays, modal state, pressure switches, and a custom-painted negative control;
+- explicit identity provenance/stability plus optional application-authored identity evidence;
+- executable identity probe demonstrating ordinary state stability and structure-sensitive auto identity;
+- living native eframe showcase with controls, tables, scrolling, overlays, modal state, pressure switches, and custom-painted negative controls;
 - optional `observer` feature with external `InspectionObserver` speaking the versioned `egui_inspection` protocol directly;
-- one-shot `examples/inspection_capture.rs` for a running inspected egui application;
-- a loopback protocol integration test exercising the real handshake, TCP framing, MessagePack request/response, AccessKit tree conversion, scale, and author identity;
+- real loopback protocol tests for handshake, TCP framing, MessagePack tree capture, scale, identity, and settle sequencing;
+- bounded `settle` and `settle_and_capture`, preserving `settled: false` as evidence instead of throwing away a busy state;
 - CI over both the default feature set and `--all-features`;
-- an explicit architectural rule that expensive serialization/analysis/diffing/live serving must not burden the GUI thread.
+- an architectural rule that expensive serialization/analysis/diffing/live serving must not burden the GUI thread.
 
-The adapter deliberately preserves rather than conceals uncertainty. AccessKit transforms are detected but not yet composed into canonical bounds, `clips_children` is observed without pretending it gives enough information for exact clipping geometry, and the external observer refuses to guess viewport geometry if usable root bounds are unavailable.
+Established rendered-evidence research slice:
+
+- provisional `EguiPaintObservation` over public `FullOutput::shapes`;
+- observed flattened back-to-front renderer order;
+- observed visual bounding rectangles and finite clip/scissor rectangles;
+- deterministic `visible_bounds` and bounding-box `visible_fraction`;
+- executable proof that a paint submission may remain in the renderer list while being partially or fully clipped;
+- explicit refusal to invent AccessKit-node ↔ paint-shape identity when egui does not expose that mapping.
+
+`docs/rendered-evidence.md` records the evidence-layer model and promotion rules. Paint observations intentionally remain outside canonical `Witness` for now.
 
 ### Living showcase
 
-The first showcase surface exists. Its continuing role is to pressure ViewWitness rather than to become a pretty example application. Active pressure areas include:
+The showcase is a pressure laboratory rather than a pretty demo. Active pressure areas include:
 
 - enabled/disabled/read-only/busy states;
 - focus and keyboard navigation;
@@ -93,38 +100,31 @@ The first showcase surface exists. Its continuing role is to pressure ViewWitnes
 - intentionally broken layouts;
 - custom-painted content that AccessKit cannot describe by itself.
 
-Where possible, each significant showcase state should acquire an expected witness fixture, invariant, or explicit negative-control expectation.
+Where possible, each significant state should acquire an expected witness fixture, invariant, or explicit negative-control expectation.
 
 ### Live observer
 
-The preferred production/live architecture is now executable: an external ViewWitness observer consumes eframe inspection state rather than performing heavy witness work inside `App::update` or rendering paths.
+The preferred production/live architecture is executable: an external ViewWitness observer consumes eframe inspection state rather than performing heavy witness work inside `App::update` or rendering paths.
 
 Current read-only path:
 
 ```text
 running eframe app
-    -> egui_inspection GetTree
+    -> egui_inspection GetTree / Settle
     -> external InspectionObserver
     -> canonical Witness
+    -> derived relations / compact text / diffs
 ```
 
-The observer should next grow only where concrete agent workflows require it. Candidate additions:
+The next useful read-only evidence channel is screenshot retrieval as supporting raster evidence. After that, richer live paint/widget metadata will require either a lightweight ViewWitness-specific in-process reporting hook or an upstream inspection extension; the current inspection protocol does not export `FullOutput::shapes` or the complete internal `WidgetRects` table.
 
-- settle-then-capture using inspection `Settle`;
-- optional screenshot retrieval as supporting evidence;
-- explicit viewport override/fallback only if native experiments prove root bounds insufficient;
-- richer captured layer/clip evidence;
-- orchestration that derives geometry and diffs outside the GUI process.
-
-Observation and control should remain conceptually separable even though the upstream inspection protocol supports input injection. A read-only witness path should remain usable without granting an agent mutation authority.
-
-The canonical model remains independent of eframe inspection, AccessKit, and MCP. They are evidence/transport integrations around `Witness`.
+Observation and control remain conceptually separate even though the upstream protocol supports input injection. A witness workflow must remain usable without granting mutation authority.
 
 ## M3 — witness diff
 
 **First useful slice established.**
 
-`WitnessDiff` now distinguishes:
+`WitnessDiff` distinguishes:
 
 - nodes added/removed;
 - node fields changed;
@@ -132,39 +132,35 @@ The canonical model remains independent of eframe inspection, AccessKit, and MCP
 - relations added/removed;
 - viewport changes;
 - format-version changes;
-- frame numbers as context without treating frame-number churn as a material GUI change.
+- frame numbers as context without treating frame-number churn as material GUI change.
 
-It has deterministic Rust representation plus YAML serialization/deserialization. Current executable probes cover:
+It has deterministic Rust representation plus YAML and compact agent-text projections. Executable probes cover inspector resize, transient context-menu opening, and a busy-state transition.
 
-- inspector resize: stable identity, changed geometry;
-- context-menu open: stable background plus added transient nodes and semantic relation;
-- busy transition: an existing action becomes disabled while progress/status state appears.
-
-The remaining identity problem is now explicit rather than hidden: v0 matches by `Node.id`, while captured identity evidence records whether that ID is structure-sensitive and whether an application-authored identifier is available. Future stronger matching must expose its matching basis rather than pretending heuristic reconciliation is observation.
-
-The next M3 pressure is a **compact agent-oriented textual projection** so edit/verify loops do not require verbose YAML when only a small transition matters.
+The identity problem is explicit rather than hidden: v0 matches by `Node.id`, while captured identity evidence records whether that ID is structure-sensitive and whether an application-authored identifier is available. Future stronger matching must expose its matching basis rather than pretending heuristic reconciliation is observation.
 
 ## M4 — operator tooling
 
-**Now becoming the next integration surface.**
+**First useful slice established.**
 
-The project already has runnable examples for headless capture, live inspection capture, and witness diffing. The next step is to consolidate the stable pieces into the smallest useful command-line surface, tentatively:
+The unified `viewwitness` CLI now orchestrates existing library capabilities:
 
 ```text
 viewwitness validate <file>
-viewwitness inspect <file>
-viewwitness derive <file>
-viewwitness diff <before> <after>
-viewwitness capture [inspection-address]
+viewwitness inspect <file> [--agent|--yaml]
+viewwitness derive <file> [--agent|--yaml]
+viewwitness diff <before> <after> [--agent|--yaml]
+viewwitness capture [address] [--agent|--yaml] [--derive] [--settle=N]
 ```
 
-The CLI should orchestrate existing library capabilities rather than become a second model or execution layer.
+Agent text is the default for repeated inspect/derive/diff/capture loops; YAML remains the richer interchange/debug projection. Subprocess tests cover the file-oriented commands, and the live-capture stack is covered by protocol integration tests.
+
+The CLI must remain orchestration around the library, not a second model or execution layer.
 
 ## M5 — agent bridge
 
 Expose witness capture, inspection, action targeting, and diffs to software agents. MCP remains an obvious integration surface, especially because the egui ecosystem already has inspection/MCP work, but ViewWitness must keep its canonical model independent of MCP.
 
-A likely progression is:
+Likely progression:
 
 ```text
 capture -> compact query/projection -> diagnose -> optional action -> settle -> recapture -> diff
@@ -187,12 +183,12 @@ The architecture may permit these. The roadmap does not currently pursue them.
 
 Architecture, ontology, format design, example design, review, and integration remain director work.
 
-Codex is useful when a task has a bounded implementation contract and enough mechanical surface to benefit from a dedicated worker. Current good delegation surfaces include:
+Good bounded delegation surfaces now include:
 
-- filling out repetitive egui/AccessKit mappings after representative cases are established;
-- expanding showcase galleries against explicit acceptance cases;
-- implementing a CLI once command behavior is fixed;
-- implementing repetitive compact-projection formatting after the projection contract is designed;
-- filling protocol/control plumbing once observation-versus-control semantics are settled.
+- repetitive egui/AccessKit mappings after representative cases are established;
+- showcase gallery expansion against explicit acceptance cases;
+- CLI polish after command behavior is fixed;
+- repetitive projection formatting after the projection contract is designed;
+- protocol/control plumbing once observation-versus-control semantics are settled.
 
 The director should continue to implement small semantic slices directly when doing so helps establish the contract. Codex multiplies mechanical throughput; it does not inherit architectural authority.
