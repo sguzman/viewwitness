@@ -2,7 +2,9 @@
 
 use std::time::Duration;
 
-use viewwitness::{EguiAuthoredPaintObject, EguiFrameProbe, EguiPaintAnnotator, EguiPaintObjectDescriptor};
+use viewwitness::{
+    EguiAuthoredPaintObject, EguiFrameProbe, EguiPaintAnnotator, EguiPaintObjectDescriptor,
+};
 
 #[test]
 fn authored_binding_ids_survive_reordered_submissions() {
@@ -71,32 +73,22 @@ fn capture_object(
             EguiPaintObjectDescriptor::new("canvas:keyed", "diagram_node")
                 .with_name("Keyed node"),
             |object| {
-                let mut add_outline = || {
-                    object.add_shape_with_id(
-                        &painter,
-                        "outline",
-                        RectShape::stroke(
-                            outline_bounds,
-                            0.0,
-                            egui::Stroke::new(2.0, egui::Color32::WHITE),
-                            egui::StrokeKind::Middle,
-                        ),
-                    );
+                let outline = || {
+                    RectShape::stroke(
+                        outline_bounds,
+                        0.0,
+                        egui::Stroke::new(2.0, egui::Color32::WHITE),
+                        egui::StrokeKind::Middle,
+                    )
                 };
-                let mut add_handle = || {
-                    object.add_shape_with_id(
-                        &painter,
-                        "handle",
-                        CircleShape::filled(handle_center, 5.0, egui::Color32::GRAY),
-                    );
-                };
+                let handle = || CircleShape::filled(handle_center, 5.0, egui::Color32::GRAY);
 
                 if reverse {
-                    add_handle();
-                    add_outline();
+                    object.add_shape_with_id(&painter, "handle", handle());
+                    object.add_shape_with_id(&painter, "outline", outline());
                 } else {
-                    add_outline();
-                    add_handle();
+                    object.add_shape_with_id(&painter, "outline", outline());
+                    object.add_shape_with_id(&painter, "handle", handle());
                 }
             },
         );
