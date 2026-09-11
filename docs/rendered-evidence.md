@@ -11,20 +11,20 @@ The current experiments establish at least five distinct kinds of GUI testimony:
 1. **Semantic evidence** — AccessKit nodes, roles, values, hierarchy, focus, actions, and semantic relations.
 2. **Paint-submission evidence** — shapes egui submitted to the renderer, including visual bounding rectangles, clips, and flattened paint order.
 3. **Clip-survival evidence** — deterministic bounding-box survival through an observed scissor rectangle.
-4. **Authored custom-paint evidence** — application-declared object semantics bound to the concrete egui paint handle actually used for that object.
+4. **Authored custom-paint evidence** — application-declared logical-object semantics plus one or more concrete paint bindings explicitly grouped by the application.
 5. **Raster evidence** — what pixels finally appear in a screenshot/framebuffer.
 
 These are related but not interchangeable.
 
-A submitted paint shape can exist while being fully clipped. A semantic node can exist without a unique paint primitive. A paint primitive can exist without any AccessKit node. An application can explicitly declare that a custom object owns a paint handle without thereby proving an AccessKit-node mapping. A screenshot can show final pixels without explaining which semantic object or paint submission produced them.
+A submitted paint shape can exist while being fully clipped. A semantic node can exist without a unique paint primitive. A paint primitive can exist without any AccessKit node. An application can explicitly declare that several paint handles belong to one custom object without thereby proving an AccessKit-node mapping. A screenshot can show final pixels without explaining which semantic object or paint submission produced them.
 
 ViewWitness preserves these distinctions rather than choosing one representation and pretending it exhausts GUI reality.
 
-## What egui publicly exposes
+## Generic egui paint evidence
 
 `egui::FullOutput` exposes `shapes: Vec<ClippedShape>` as the renderer-facing flattened paint list. Each `ClippedShape` contains a `Shape` and a clip/scissor rectangle.
 
-`Shape::visual_bounding_rect()` provides an axis-aligned visual bounding box. egui's graphics drain flattens ordered layer paint lists into `FullOutput::shapes`, so sequence position is usable observed back-to-front paint-order evidence.
+`Shape::visual_bounding_rect()` provides an axis-aligned visual bounding box. egui's graphics drain flattens ordered layer paint lists into `FullOutput::shapes`, so sequence position is usable observed back-to-front paint-order evidence for generic paint.
 
 The current ViewWitness research adapter exposes these facts as `EguiPaintObservation`:
 
@@ -37,11 +37,9 @@ pub struct EguiPaintObservation {
 }
 ```
 
-`EguiPaintKind` is a small serializable enum rather than a `String`. That is a deliberate render-path property: classifying a fixed egui shape vocabulary should not allocate a heap string for every submitted primitive.
-
 This type remains egui-specific and provisional. It is not embedded in canonical `Witness` documents.
 
-## Clipping experiment
+## Generic clipping experiment
 
 The executable generic-paint probe submits two custom-painted shapes through the same finite clip rectangle:
 
@@ -65,105 +63,60 @@ The experiment establishes three useful states:
 - `0.0 < visible_fraction < 1.0` — partial clipping;
 - `visible_fraction == 0.0` — paint was submitted but none of its bounding rectangle survives clipping.
 
-`visible_fraction` is a **derived bounding-box measure**, not exact pixel/alpha coverage. A circle whose bounding box is half clipped does not necessarily have exactly half of its painted pixels visible. That stronger claim would require raster or shape-specific analysis.
+`visible_fraction` is a **derived bounding-box measure**, not exact pixel/alpha coverage. A circle whose bounding box is half clipped does not necessarily have exactly half of its painted pixels visible.
 
 ## Paint order is not yet occlusion
 
 Paint order plus overlapping visible bounds is stronger evidence than geometry alone, but it still does not automatically prove semantic occlusion.
 
-Reasons include:
-
-- transparent or partially transparent paint;
-- hollow/stroked shapes whose bounding boxes overlap without covering the same pixels;
-- complex meshes and callbacks;
-- multiple paint primitives belonging to one widget or authored object;
-- one paint primitive spanning several semantic concepts.
+Reasons include transparency, hollow/stroked shapes, complex meshes/callbacks, multiple primitives belonging to one logical object, and one primitive spanning several concepts.
 
 Therefore ViewWitness does not derive canonical `occludes` merely from `later paint order + rectangle overlap`.
 
 A future lower-level relation such as `painted_after` or a paint-overlap diagnostic may be justified, but it should remain clearly weaker than a proven visual occlusion claim.
 
-## Live reporting without render-thread work
+## Continuous reporting without render-thread work
 
-`EguiPaintReporter` is an egui plugin that observes the public `FullOutput` boundary and emits `EguiPaintFrame` values into a bounded `sync_channel` using `try_send`.
+`EguiPaintReporter` observes the public `FullOutput` boundary and emits compact `EguiPaintFrame` values into a bounded `sync_channel` using `try_send`.
 
-A paint frame currently contains:
+It performs no JSON/YAML serialization, persistence, network I/O, diffing, searching, or model work. Executable backpressure tests establish that a saturated reporter drops evidence rather than blocking a GUI pass, and a later delivered frame exposes the drop count.
 
-- raw numeric egui viewport identity;
-- egui cumulative pass number for that viewport;
-- pixels per point;
-- `dropped_before`, the count of reporter frames lost since the previous successful delivery because the bounded queue was full;
-- provisional paint observations.
+The worker-side `run_egui_paint_server` / `EguiPaintObserver` side channel is read-only and loopback-oriented on `127.0.0.1:5720`. It is evidence transport, not an input/control protocol.
 
-The reporter performs no JSON/YAML serialization, persistence, network I/O, diffing, searching, or model work. The executable backpressure probe fills a one-frame queue, runs another GUI pass without consuming it, and establishes that:
-
-- the GUI pass still completes;
-- the saturated frame is dropped rather than blocking rendering;
-- the next successfully delivered frame reports `dropped_before == 1`.
-
-Loss is therefore observable evidence rather than a hidden consequence of protecting the render thread.
-
-## Read-only continuous paint side channel
-
-The worker-side `run_egui_paint_server` and `EguiPaintObserver` expose paint frames outside the GUI process without extending or impersonating `egui_inspection`.
-
-The v0 side channel is deliberately small:
-
-- TCP;
-- a ViewWitness-specific versioned handshake;
-- compact newline-delimited JSON frames;
-- loopback default `127.0.0.1:5720`, distinct from egui inspection's `5719`;
-- bounded message size;
-- short client write timeout;
-- one active observer, with a successfully initialized newer connection replacing the older one;
-- latest-frame retention while no observer is connected.
-
-The server is a **blocking worker function**. It receives already-copied paint frames from the bounded reporter queue and performs serialization/network work off the GUI thread.
-
-An end-to-end loopback test paints a frame before any observer connects, then establishes that a later observer receives that retained frame without another repaint and subsequently receives new live frames. A separate test rejects an unrecognized protocol handshake.
-
-The side channel is intentionally read-only. It is evidence transport, not an input/control protocol.
-
-## Independent live streams are not exact correlation
+## Independent streams are not exact correlation
 
 The external `egui_inspection` semantic stream and continuous ViewWitness paint stream expose different clocks:
 
-- `egui_inspection::Response::Tree.step` is a counter owned by the inspection plugin and incremented in that plugin's `output_hook`;
-- `EguiPaintFrame.pass_nr` is egui's cumulative pass number for the active viewport.
+- `egui_inspection::Response::Tree.step` is inspection-plugin state;
+- `EguiPaintFrame.pass_nr` is egui's cumulative viewport-aware pass number.
 
-The inspection counter is plugin-global while egui pass numbering is viewport-aware. Their values must therefore **not** be equated or joined by an assumed fixed offset.
-
-An external AccessKit witness and an independently streamed paint frame are valid observations, but ViewWitness does not claim they describe the exact same pass.
+Their values must **not** be equated or joined by an assumed fixed offset.
 
 ## Exact same-pass correlation
 
 `EguiFrameProbe` solves exact semantic↔paint correlation by avoiding clock reconciliation entirely.
 
-A worker requests one capture. Capture eligibility is fixed at the **start** of a pass. This matters for application-authored custom-paint annotations: a request arriving halfway through a pass waits for the next repaint rather than collecting a semantic/paint frame whose annotation history began before the request existed.
+A worker requests one capture. Capture eligibility is fixed at the **start** of a pass so a request arriving halfway through a frame cannot collect only a suffix of authored annotations.
 
-One requested pass then supplies:
+One requested pass supplies:
 
 - the AccessKit update attached to that `FullOutput`;
-- renderer-facing paint observations from that same `FullOutput`;
-- egui's active viewport identity;
-- egui's cumulative pass number;
+- renderer-facing generic paint observations from that `FullOutput`;
+- egui viewport identity;
+- egui cumulative pass number;
 - pixels per point;
-- egui's current viewport rectangle;
-- any explicit authored custom-paint bindings verified at end-of-pass.
+- current viewport rectangle;
+- any explicitly authored custom-paint objects and their bindings, verified at end-of-pass.
 
-The result is sent through a bounded channel using `try_send`. If the response queue is full, the request is explicitly reported as dropped; the GUI hook never blocks and never retries expensive work in a repaint loop.
+The result is sent through a bounded channel using `try_send`. If the response queue is full, the request is explicitly reported as dropped; the GUI hook never blocks.
 
-`EguiFrameEvidence::into_correlated_capture()` performs the heavier semantic conversion off-thread and yields `EguiCorrelatedCapture`, containing a canonical semantic `Witness`, provisional generic paint observations, and provisional authored custom-paint evidence known to share the capture pass.
-
-The canonical witness metadata names the clock (`egui_cumulative_pass_nr`) and correlation basis (`same_full_output`) rather than asking consumers to infer them.
+Worker-side conversion yields `EguiCorrelatedCapture`, containing a canonical semantic `Witness` plus provisional egui paint/authored evidence from the same requested pass.
 
 ## Viewport evidence finding
 
-An early correlated-capture implementation attempted to derive viewport dimensions from AccessKit root bounds, matching the external inspection observer's only currently available strategy.
+An early correlated-capture implementation attempted to derive viewport dimensions from AccessKit root bounds. An executable test rejected that assumption: a valid headless egui semantic tree can lack usable root bounds even while egui itself knows the viewport.
 
-The all-features executable test rejected that assumption: a valid headless egui `FullOutput` can contain useful AccessKit semantics while its root lacks usable bounds, even though egui itself knows the viewport.
-
-The in-process same-pass probe now copies `InputState::viewport_rect()` directly. `EguiCorrelatedCapture` preserves the full observed rectangle, including origin, while canonical `Viewport` currently uses its width and height. Invalid/non-finite observed viewport geometry is an error; ViewWitness does not fall back to invented dimensions.
+The in-process same-pass probe therefore copies `InputState::viewport_rect()` directly. Invalid/non-finite observed viewport geometry is an error; ViewWitness does not fall back to invented dimensions.
 
 This produces an important source rule:
 
@@ -171,73 +124,109 @@ This produces an important source rule:
 
 ## Explicit authored custom-paint identity
 
-Exact same-pass capture still does **not** reveal a generic AccessKit-node → paint-shape mapping. ViewWitness now solves a narrower, important case without guessing: applications may explicitly identify custom-painted objects at paint time.
+Exact same-pass capture still does **not** reveal a generic AccessKit-node → paint-shape mapping. ViewWitness solves a narrower case without guessing: applications may explicitly identify custom-painted logical objects at paint time.
 
-`EguiPaintAnnotator::add_shape` paints normally through `Painter::add` and receives egui's real layer-local `ShapeIdx`. The annotator records, only during a requested exact-capture pass:
-
-- application-authored object ID;
-- application-authored role and optional name;
-- the actual `LayerId` of the painter;
-- the actual `ShapeIdx` returned by egui.
-
-The epistemic split is explicit:
+The accepted model is:
 
 ```text
-object id / role / name     semantic_evidence = intended
-LayerId + ShapeIdx binding  binding_evidence = observed
+logical authored object
+    intended id / role / optional name
+    bindings[]
+        observed LayerId + ShapeIdx
+        final verification state
+        final kind / bounds / clip
 ```
 
-At egui's `on_end_pass` hook—after application UI code has finished painting but before graphic layers are drained into `FullOutput`—ViewWitness looks up that exact layer and slot through the public graphics API. It records the **final** shape kind, bounds, and clip rectangle occupying the handle and marks whether the handle was successfully verified.
+The application creates multi-shape membership explicitly with `EguiPaintAnnotator::paint_object(...)`. The callback receives an object scope and every shape added or bound through that scope becomes one binding of that logical object.
 
-This is stronger than storing geometry at annotation time.
+The singular `add_shape(...)` API is merely the one-binding convenience form.
 
-The executable identity pressure test deliberately creates two authored objects with **identical overlapping bounds**. They remain distinct because their identities are tied to different real shape slots, not rectangle matching. The test also annotates one rectangle and subsequently replaces the exact slot through `Painter::set`; end-of-pass evidence reports the final shape as a **circle**. That demonstrates the binding follows egui's paint handle rather than the shape originally submitted or its coincident geometry.
+### Why duplicate IDs are not grouping
 
-A negative-control test annotates an ordinary frame when no exact capture was requested, then performs a later exact capture containing no authored objects. No old annotation leaks forward. Ordinary frames therefore do not accumulate custom-paint bookkeeping.
+A dedicated executable negative-control test performs two independent annotations with exactly the same authored ID but different roles. Exact capture returns **two authored object records**, each with one binding.
 
-### Authored objects under clipping
+Therefore:
 
-The authored-object layer now composes with the same bounding-box clipping semantics as generic paint.
+```text
+same authored ID                  != same logical object
+same geometry                     != same logical object
+same capture pass                 != same logical object
+explicit paint_object grouping     == authored membership claim
+```
 
-A separate executable test creates an authored 40×40 rectangle through a painter whose final finite clip preserves exactly a 20×40 half. End-of-pass handle verification observes:
+This keeps grouping provenance visible. ViewWitness does not silently repair an application's duplicate IDs or infer identity from convenience.
 
-- final object bounds: 40×40;
-- final clip rect: 20×40 over the right half;
-- derived `visible_bounds`: the 20×40 intersection;
-- derived `visible_fraction`: `0.5`.
+### Handle identity experiment
 
-`EguiAuthoredPaintObject::visible_bounds()` and `visible_fraction()` are therefore derived from the **final verified handle evidence**, not from the descriptor or geometry remembered at annotation time.
+The earlier identity pressure test deliberately creates two authored objects with **identical overlapping bounds**. They remain distinct because their bindings point to different real shape slots.
 
-The same caveat applies as for generic paint: `0.5` means half of the axis-aligned visual bounding rectangle survives the clip. It does **not** mean exactly half of the object's painted pixels or alpha survives.
+The test then annotates one rectangle and replaces that exact slot through `Painter::set`. End-of-pass evidence reports the final shape as a **circle**. The binding therefore follows egui's handle, not the originally submitted shape or coincident geometry.
 
-The correlated agent projection labels the fraction as `visible_fraction_evidence=derived_bbox_clip` so an agent does not silently strengthen the claim.
+A negative-control test also proves annotations from an ordinary unrequested frame do not leak into a later exact request.
 
-The live showcase uses explicit authored identity for exactly two Canvas objects:
+### Multi-shape object experiment
 
-- `showcase:painted-rectangle`;
-- `showcase:painted-circle`.
+The new core pressure test constructs **one authored logical object with two explicit paint bindings**.
 
-The canvas background and text labels remain ordinary anonymous paint. That is intentional: ViewWitness only grants custom-object identity where the application explicitly supplied it.
+Both bindings have the same final 40×40 visual bounds, but they are different renderer submissions:
 
-`EguiAuthoredPaintObject` remains egui-specific correlated evidence, not a canonical `WitnessNode`. The project is not claiming that all GUI concepts are accessibility nodes, nor that all authored graphics should be promoted into the cross-backend ontology.
+- binding 0 is a rectangle on an ordinary painter and survives clipping fully;
+- binding 1 is a circle submitted through a painter clipped to the right 20×40 half.
+
+Exact capture proves:
+
+- there is one authored object, not two duplicated object records;
+- it has exactly two distinct `ShapeIdx` bindings;
+- both final slots verify successfully;
+- final kinds remain independently observable (`rect`, `circle`);
+- both can share the same visual bounds without losing identity;
+- binding 0 derives `visible_fraction = 1.0`;
+- binding 1 derives `visible_fraction = 0.5` from its final clip.
+
+This is why visibility remains **per binding**. A single object-level `visible_fraction` would erase a real disagreement among its constituent rendered parts and would require additional semantics about how those parts compose.
+
+The correlated agent projection therefore emits a logical `authored-object` line followed by separate `authored-binding` lines, each carrying its own kind/bounds/clip/visibility evidence.
+
+### Live showcase pressure case
+
+The native showcase now contains exactly two authored Canvas objects with four explicit bindings:
+
+- `showcase:painted-rectangle`
+  - stroked outline;
+  - small filled handle;
+- `showcase:painted-circle`
+  - outer ring;
+  - center marker.
+
+The canvas background and text labels remain ordinary anonymous paint. This keeps the demonstration epistemically useful: exact capture should expose two authored objects, four verified authored bindings, and unrelated generic paint rather than pretending instrumentation semanticizes the entire renderer output.
+
+## Exact transport versioning
+
+The authored-object envelope is serialized over ViewWitness's exact capture transport. Moving from one object record per handle to one object with `bindings[]` was therefore a real wire-format change.
+
+The exact protocol was bumped to:
+
+```text
+VIEWWITNESS-EGUI-CAPTURE 2
+```
+
+A v2 observer explicitly rejects a v1 peer. ViewWitness does not reuse the same handshake for incompatible serialized meanings.
 
 ## What remains unknown
 
 The generic widget-to-paint problem remains open.
 
-egui internally has rich `WidgetRect` / `WidgetRects` information including widget ID, parent UI ID, layer ID, full rectangle, clipped interaction rectangle, enabled state, interaction sense, and back-to-front ordering within layers. The complete collection is not currently exposed through the same public capture boundary used here.
+egui internally has richer widget/layout data than AccessKit alone, but the complete collection is not exposed through the same public capture boundary used here. ViewWitness must therefore still **not invent an automatic AccessKit-node → paint-shape mapping** from coincident geometry, names, or same-frame occurrence.
 
-ViewWitness must therefore still **not invent an automatic AccessKit-node → paint-shape mapping** from coincident geometry, names, or same-frame occurrence. Same time does not imply same identity.
-
-Likewise, the new authored binding proves a layer-local paint handle. ViewWitness has not yet promoted a claim that every such handle can be resolved robustly to a flattened global `FullOutput` paint-order index across all unusual/missing-layer cases. That needs its own executable proof before becoming evidence.
+Likewise, an authored binding currently proves a **layer-local** paint handle. ViewWitness has not proven a general mapping from arbitrary `(LayerId, ShapeIdx)` to the flattened `FullOutput::shapes` global order across all layer/window cases.
 
 The next useful pressure cases are:
 
-- one authored object composed of multiple paint handles;
-- authored objects across multiple layers/windows;
+- one authored object with bindings on multiple egui layers;
 - reset/removal semantics for bound handles;
 - safe mapping, if possible, from layer-local handles to flattened renderer order;
-- interaction between authored object identity and diffs across frames.
+- authored-object/binding diffs across exact captures;
+- real agent debugging workflows against the live showcase.
 
 ## Promotion rule
 
@@ -246,10 +235,11 @@ Rendered concepts should enter the canonical cross-backend `Witness` model only 
 For now:
 
 - AccessKit semantic evidence belongs in canonical witnesses;
-- egui paint observations remain a research/integration structure;
-- bounding-box clip survival is deterministic derived evidence for both generic and explicitly authored paint;
+- egui paint observations remain integration/research evidence;
+- bounding-box clip survival is deterministic derived evidence for generic paint and each authored binding;
 - the continuous paint side channel transports egui-specific evidence without promoting it into the canonical model;
 - `EguiCorrelatedCapture` proves same-pass origin without implying generic widget↔paint identity;
-- explicitly instrumented custom paint can carry authored semantics plus an observed, end-of-pass-verified egui paint-handle binding;
+- explicitly instrumented custom paint can carry one authored logical identity plus one or more observed, end-of-pass-verified egui paint bindings;
+- duplicate authored IDs are preserved, not silently merged;
 - screenshots remain supporting raster evidence unless their transport supplies trustworthy same-frame correlation;
 - generic widget↔paint association remains unknown unless a source explicitly supplies it.
