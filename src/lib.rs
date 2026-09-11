@@ -8,6 +8,8 @@ mod diff;
 #[cfg(feature = "egui")]
 mod egui_capture;
 #[cfg(feature = "egui")]
+mod egui_frame_probe;
+#[cfg(feature = "egui")]
 mod egui_paint;
 #[cfg(feature = "egui")]
 mod egui_paint_reporter;
@@ -25,6 +27,8 @@ pub use diff::{FieldChange, NodeChange, ViewportChange, WitnessDiff, diff_witnes
 pub use egui_capture::{
     EguiCaptureContext, witness_from_egui_output, witness_from_egui_tree_update,
 };
+#[cfg(feature = "egui")]
+pub use egui_frame_probe::{EguiFrameEvidence, EguiFrameProbe};
 #[cfg(feature = "egui")]
 pub use egui_paint::{EguiPaintKind, EguiPaintObservation, paint_observations_from_egui_output};
 #[cfg(feature = "egui")]
