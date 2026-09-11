@@ -23,6 +23,7 @@ fn run() -> io::Result<()> {
         "derive" => derive_command(args.collect()),
         "diff" => diff_command(args.collect()),
         "capture" => capture_command(args.collect()),
+        "screenshot" => screenshot_command(args.collect()),
         "help" | "--help" | "-h" => {
             print_usage();
             Ok(())
@@ -143,6 +144,59 @@ fn capture_command(_args: Vec<String>) -> io::Result<()> {
     ))
 }
 
+#[cfg(feature = "observer")]
+fn screenshot_command(args: Vec<String>) -> io::Result<()> {
+    use viewwitness::InspectionObserver;
+
+    let mut output_path = None;
+    let mut addr = "127.0.0.1:5719".to_owned();
+    let mut scale = None;
+
+    for arg in args {
+        if let Some(value) = arg.strip_prefix("--address=") {
+            if value.is_empty() {
+                return Err(invalid("--address must not be empty"));
+            }
+            addr = value.to_owned();
+        } else if let Some(value) = arg.strip_prefix("--scale=") {
+            scale = Some(value.parse::<f32>().map_err(|error| {
+                invalid(format!("invalid --scale value {value:?}: {error}"))
+            })?);
+        } else if arg.starts_with('-') {
+            return Err(invalid(format!("unknown screenshot option {arg:?}")));
+        } else if output_path.replace(arg).is_some() {
+            return Err(invalid("only one screenshot output path may be supplied"));
+        }
+    }
+
+    let Some(output_path) = output_path else {
+        return Err(invalid(
+            "usage: viewwitness screenshot <output.png> [--address=HOST:PORT] [--scale=N]",
+        ));
+    };
+
+    let mut observer = InspectionObserver::connect(&addr)?;
+    let screenshot = observer.screenshot(scale)?;
+    fs::write(&output_path, screenshot.png_bytes).map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!("failed to write screenshot {output_path}: {error}"),
+        )
+    })?;
+    println!(
+        "saved {output_path} {}x{}",
+        screenshot.size[0], screenshot.size[1]
+    );
+    Ok(())
+}
+
+#[cfg(not(feature = "observer"))]
+fn screenshot_command(_args: Vec<String>) -> io::Result<()> {
+    Err(invalid(
+        "screenshot capture requires the `observer` feature; rebuild with `--features observer`",
+    ))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OutputMode {
     Agent,
@@ -226,7 +280,9 @@ fn print_usage() {
            viewwitness derive <file> [--agent|--yaml]\n\
            viewwitness diff <before> <after> [--agent|--yaml]\n\
            viewwitness capture [address] [--agent|--yaml] [--derive] [--settle=N]\n\
+           viewwitness screenshot <output.png> [--address=HOST:PORT] [--scale=N]\n\
          \n\
-         Agent text is the default output for inspect, derive, diff, and capture."
+         Agent text is the default output for inspect, derive, diff, and capture.\n\
+         Screenshots are separate raster evidence and are not frame-correlated with witnesses."
     );
 }
