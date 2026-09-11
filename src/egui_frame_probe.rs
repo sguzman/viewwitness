@@ -12,7 +12,7 @@ use egui::accesskit::TreeUpdate;
 use serde_json::json;
 
 use crate::{
-    EguiCaptureContext, EguiPaintObservation, Viewport, Witness,
+    EguiCaptureContext, EguiPaintObservation, Rect, Viewport, Witness,
     paint_observations_from_egui_output, witness_from_egui_tree_update,
 };
 
@@ -22,15 +22,16 @@ const DROP_POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// explicit ViewWitness capture request.
 ///
 /// Unlike the independent external inspection and continuous paint channels,
-/// `accesskit` and `paint` in this value are known to originate from the same
-/// egui output hook invocation. The type remains egui-specific integration
-/// evidence rather than canonical `Witness` state.
+/// `accesskit`, `viewport_rect`, and `paint` in this value are known to
+/// originate from the same egui output hook invocation. The type remains
+/// egui-specific integration evidence rather than canonical `Witness` state.
 #[derive(Debug, Clone)]
 pub struct EguiFrameEvidence {
     pub request_id: u64,
     pub viewport_id: u64,
     pub pass_nr: u64,
     pub pixels_per_point: f32,
+    pub viewport_rect: Rect,
     pub accesskit: Option<TreeUpdate>,
     pub paint: Vec<EguiPaintObservation>,
 }
@@ -46,6 +47,7 @@ pub struct EguiCorrelatedCapture {
     pub request_id: u64,
     pub viewport_id: u64,
     pub pass_nr: u64,
+    pub viewport_rect: Rect,
     pub witness: Witness,
     pub paint: Vec<EguiPaintObservation>,
 }
@@ -54,9 +56,10 @@ impl EguiFrameEvidence {
     /// Convert raw same-pass evidence into a canonical semantic witness plus
     /// its correlated provisional paint evidence.
     ///
-    /// This is worker-side work. The viewport is derived from the observed
-    /// AccessKit root bounds and captured scale. Missing or invalid geometry is
-    /// an error rather than permission to invent viewport dimensions.
+    /// This is worker-side work. Viewport size comes from egui's observed
+    /// viewport rectangle copied from the same output-hook invocation; AccessKit
+    /// root geometry is not treated as a viewport surrogate. Invalid observed
+    /// geometry is an error rather than permission to invent dimensions.
     pub fn into_correlated_capture(self) -> io::Result<EguiCorrelatedCapture> {
         let update = self.accesskit.ok_or_else(|| {
             io::Error::new(
@@ -64,12 +67,13 @@ impl EguiFrameEvidence {
                 "same-pass egui capture produced no AccessKit tree",
             )
         })?;
-        let viewport = viewport_from_root(&update, self.pixels_per_point).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "same-pass egui AccessKit root has no usable bounds; refusing to guess viewport geometry",
-            )
-        })?;
+        let viewport = viewport_from_observed_rect(self.viewport_rect, self.pixels_per_point)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "same-pass egui viewport evidence is invalid; refusing to guess viewport geometry",
+                )
+            })?;
 
         let mut witness = witness_from_egui_tree_update(
             &update,
@@ -87,6 +91,10 @@ impl EguiFrameEvidence {
             "semantic_paint_correlation".into(),
             json!("same_full_output"),
         );
+        witness.capture.metadata.insert(
+            "viewport_evidence_source".into(),
+            json!("egui_input_state_viewport_rect"),
+        );
         witness
             .capture
             .metadata
@@ -99,11 +107,21 @@ impl EguiFrameEvidence {
             .capture
             .metadata
             .insert("egui_pass_nr".into(), json!(self.pass_nr));
+        witness.capture.metadata.insert(
+            "egui_viewport_rect".into(),
+            json!({
+                "x": self.viewport_rect.x,
+                "y": self.viewport_rect.y,
+                "width": self.viewport_rect.width,
+                "height": self.viewport_rect.height,
+            }),
+        );
 
         Ok(EguiCorrelatedCapture {
             request_id: self.request_id,
             viewport_id: self.viewport_id,
             pass_nr: self.pass_nr,
+            viewport_rect: self.viewport_rect,
             witness,
             paint: self.paint,
         })
@@ -147,11 +165,18 @@ impl egui::Plugin for EguiFrameProbePlugin {
         // never cause an implicit retry/repaint loop on later GUI passes.
         self.handled_request_id = request_id;
 
+        let viewport_rect = ctx.input(|input| input.viewport_rect());
         let evidence = EguiFrameEvidence {
             request_id,
             viewport_id: ctx.viewport_id().0.value(),
             pass_nr: ctx.cumulative_pass_nr(),
             pixels_per_point: output.pixels_per_point,
+            viewport_rect: Rect {
+                x: viewport_rect.min.x,
+                y: viewport_rect.min.y,
+                width: viewport_rect.width(),
+                height: viewport_rect.height(),
+            },
             accesskit: output.platform_output.accesskit_update.clone(),
             paint: paint_observations_from_egui_output(output),
         };
@@ -312,27 +337,22 @@ impl EguiFrameProbe {
     }
 }
 
-fn viewport_from_root(update: &TreeUpdate, pixels_per_point: f32) -> Option<Viewport> {
-    if !pixels_per_point.is_finite() || pixels_per_point <= 0.0 {
-        return None;
-    }
-
-    let root_id = update.tree.as_ref()?.root;
-    let root = update
-        .nodes
-        .iter()
-        .find_map(|(id, node)| (*id == root_id).then_some(node))?;
-    let bounds = root.bounds()?;
-    let width = (bounds.x1 - bounds.x0) as f32;
-    let height = (bounds.y1 - bounds.y0) as f32;
-
-    if !width.is_finite() || !height.is_finite() || width < 0.0 || height < 0.0 {
+fn viewport_from_observed_rect(rect: Rect, pixels_per_point: f32) -> Option<Viewport> {
+    if !pixels_per_point.is_finite()
+        || pixels_per_point <= 0.0
+        || !rect.x.is_finite()
+        || !rect.y.is_finite()
+        || !rect.width.is_finite()
+        || !rect.height.is_finite()
+        || rect.width < 0.0
+        || rect.height < 0.0
+    {
         return None;
     }
 
     Some(Viewport {
-        width,
-        height,
+        width: rect.width,
+        height: rect.height,
         scale_factor: pixels_per_point,
     })
 }
