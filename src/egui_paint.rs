@@ -39,9 +39,7 @@ impl EguiPaintObservation {
 /// entry with an AccessKit node or widget because egui does not publicly expose
 /// that mapping at this boundary.
 #[must_use]
-pub fn paint_observations_from_egui_output(
-    output: &egui::FullOutput,
-) -> Vec<EguiPaintObservation> {
+pub fn paint_observations_from_egui_output(output: &egui::FullOutput) -> Vec<EguiPaintObservation> {
     output
         .shapes
         .iter()
@@ -66,12 +64,15 @@ fn rect_from_egui(rect: egui::Rect) -> Option<Rect> {
     let width = rect.width();
     let height = rect.height();
     let values = [rect.min.x, rect.min.y, width, height];
-    values.iter().all(|value| value.is_finite()).then_some(Rect {
-        x: rect.min.x,
-        y: rect.min.y,
-        width,
-        height,
-    })
+    values
+        .iter()
+        .all(|value| value.is_finite())
+        .then_some(Rect {
+            x: rect.min.x,
+            y: rect.min.y,
+            width,
+            height,
+        })
 }
 
 fn shape_kind(shape: &egui::epaint::Shape) -> &'static str {
