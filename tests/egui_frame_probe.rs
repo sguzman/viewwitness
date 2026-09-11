@@ -2,7 +2,10 @@
 
 use std::{io::ErrorKind, time::Duration};
 
-use viewwitness::{EguiFrameProbe, EguiPaintKind, Rect, paint_observations_from_egui_output};
+use viewwitness::{
+    EguiFrameProbe, EguiLayerOrder, EguiPaintKind, EguiPaintObjectDescriptor, Rect,
+    paint_observations_from_egui_output,
+};
 
 #[test]
 fn requested_probe_captures_semantics_paint_and_viewport_from_one_exact_output() {
@@ -54,6 +57,7 @@ fn requested_probe_captures_semantics_paint_and_viewport_from_one_exact_output()
         }
     );
     assert_eq!(evidence.paint, expected_paint);
+    assert!(evidence.authored_objects.is_empty());
     assert!(evidence.paint.iter().any(|observation| {
         observation.kind == EguiPaintKind::Rect
             && observation.bounds
@@ -100,6 +104,7 @@ fn requested_probe_captures_semantics_paint_and_viewport_from_one_exact_output()
         }
     );
     assert_eq!(capture.paint, expected_paint);
+    assert!(capture.authored_objects.is_empty());
     assert_eq!(capture.witness.capture.frame, Some(capture.pass_nr));
     assert_eq!(capture.witness.capture.viewport.width, 200.0);
     assert_eq!(capture.witness.capture.viewport.height, 120.0);
@@ -135,6 +140,131 @@ fn requested_probe_captures_semantics_paint_and_viewport_from_one_exact_output()
 }
 
 #[test]
+fn authored_custom_paint_binds_identity_to_real_shape_slots_not_geometry() {
+    use egui::epaint::{CircleShape, RectShape};
+
+    let ctx = egui::Context::default();
+    let mut probe = EguiFrameProbe::install(&ctx, 1);
+    let annotator = probe.annotator();
+    probe.request_capture().expect("request annotated capture");
+
+    let shared_rect =
+        egui::Rect::from_min_size(egui::pos2(40.0, 30.0), egui::vec2(40.0, 40.0));
+    let mut first_shape_index = None;
+    let mut second_shape_index = None;
+
+    let output = ctx.run_ui(test_input(), |ui| {
+        let painter = ui.painter().clone();
+
+        let first = annotator.add_shape(
+            &painter,
+            EguiPaintObjectDescriptor::new("canvas:first", "diagram_node").with_name("First"),
+            RectShape::filled(shared_rect, 0.0, egui::Color32::DARK_GRAY),
+        );
+        first_shape_index = Some(first.0);
+
+        // Replace the exact paint slot after annotation. End-of-pass resolution
+        // must report the final circle, proving that the binding follows egui's
+        // real handle rather than remembering the originally submitted geometry.
+        painter.set(
+            first,
+            CircleShape {
+                center: shared_rect.center(),
+                radius: 20.0,
+                fill: egui::Color32::WHITE,
+                stroke: egui::Stroke::NONE,
+            },
+        );
+
+        let second = annotator.add_shape(
+            &painter,
+            EguiPaintObjectDescriptor::new("canvas:second", "diagram_node").with_name("Second"),
+            RectShape::filled(shared_rect, 0.0, egui::Color32::GRAY),
+        );
+        second_shape_index = Some(second.0);
+    });
+
+    let evidence = probe
+        .recv_timeout(Duration::from_millis(100))
+        .expect("receive authored paint evidence");
+    output.drop_without_applying_deltas();
+
+    assert_eq!(evidence.authored_objects.len(), 2);
+    let first = evidence
+        .authored_objects
+        .iter()
+        .find(|object| object.id == "canvas:first")
+        .expect("first authored object");
+    let second = evidence
+        .authored_objects
+        .iter()
+        .find(|object| object.id == "canvas:second")
+        .expect("second authored object");
+
+    assert_eq!(first.semantic_evidence, "intended");
+    assert_eq!(first.binding_evidence, "observed");
+    assert_eq!(first.layer_order, EguiLayerOrder::Background);
+    assert!(first.verified_at_end_pass);
+    assert_eq!(first.shape_index, first_shape_index.expect("first shape index"));
+    assert_eq!(first.kind, Some(EguiPaintKind::Circle));
+
+    assert_eq!(second.semantic_evidence, "intended");
+    assert_eq!(second.binding_evidence, "observed");
+    assert_eq!(second.layer_order, EguiLayerOrder::Background);
+    assert!(second.verified_at_end_pass);
+    assert_eq!(second.shape_index, second_shape_index.expect("second shape index"));
+    assert_eq!(second.kind, Some(EguiPaintKind::Rect));
+
+    assert_ne!(
+        first.shape_index, second.shape_index,
+        "overlapping identical bounds must remain distinct through exact paint handles"
+    );
+    assert_eq!(first.bounds, second.bounds);
+
+    let capture = evidence
+        .into_correlated_capture()
+        .expect("convert authored capture");
+    assert_eq!(capture.authored_objects.len(), 2);
+    assert_eq!(
+        capture.witness.capture.metadata["authored_paint_evidence"],
+        serde_json::json!("application_semantics_plus_verified_egui_paint_handle")
+    );
+}
+
+#[test]
+fn annotations_are_not_collected_on_unrequested_passes() {
+    use egui::epaint::RectShape;
+
+    let ctx = egui::Context::default();
+    let mut probe = EguiFrameProbe::install(&ctx, 1);
+    let annotator = probe.annotator();
+    let rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(20.0, 20.0));
+
+    let ordinary = ctx.run_ui(test_input(), |ui| {
+        annotator.add_shape(
+            ui.painter(),
+            EguiPaintObjectDescriptor::new("ordinary", "shape"),
+            RectShape::filled(rect, 0.0, egui::Color32::WHITE),
+        );
+    });
+    ordinary.drop_without_applying_deltas();
+
+    probe.request_capture().expect("request later capture");
+    let requested = ctx.run_ui(test_input(), |ui| {
+        ui.label("requested pass contains no authored custom object");
+    });
+    let evidence = probe
+        .recv_timeout(Duration::from_millis(100))
+        .expect("receive requested pass");
+    requested.drop_without_applying_deltas();
+
+    assert!(
+        evidence.authored_objects.is_empty(),
+        "ordinary-pass annotations must not leak forward into an exact request"
+    );
+}
+
+#[test]
 fn full_probe_response_queue_drops_request_instead_of_blocking_gui_pass() {
     let ctx = egui::Context::default();
     let mut probe = EguiFrameProbe::install(&ctx, 1);
@@ -145,8 +275,8 @@ fn full_probe_response_queue_drops_request_instead_of_blocking_gui_pass() {
         .expect_err("first request intentionally times out before a GUI pass");
     assert_eq!(timeout.kind(), ErrorKind::TimedOut);
 
-    // The timed-out request is still observed by the next output hook, so its
-    // now-stale response occupies the one-slot queue.
+    // The timed-out request is still observed by the next pass, so its now-stale
+    // response occupies the one-slot queue.
     let stale_output = ctx.run_ui(test_input(), |ui| {
         ui.label("stale response");
     });
