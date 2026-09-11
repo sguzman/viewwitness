@@ -332,7 +332,9 @@ fn duplicate_ids_are_not_implicitly_grouped_across_independent_annotations() {
     let ctx = egui::Context::default();
     let mut probe = EguiFrameProbe::install(&ctx, 1);
     let annotator = probe.annotator();
-    probe.request_capture().expect("request duplicate-id capture");
+    probe
+        .request_capture()
+        .expect("request duplicate-id capture");
 
     let first_rect = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(20.0, 20.0));
     let second_rect = egui::Rect::from_min_size(egui::pos2(40.0, 10.0), egui::vec2(20.0, 20.0));
