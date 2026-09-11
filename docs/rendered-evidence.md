@@ -43,7 +43,7 @@ This type remains egui-specific and provisional. It is not embedded in canonical
 
 ## Clipping experiment
 
-The executable paint probe submits two custom-painted shapes through the same finite clip rectangle:
+The executable generic-paint probe submits two custom-painted shapes through the same finite clip rectangle:
 
 - a rectangle that extends beyond the clip and therefore remains partially visible;
 - a circle entirely outside the clip and therefore becomes fully clipped.
@@ -191,11 +191,28 @@ At egui's `on_end_pass` hook—after application UI code has finished painting b
 
 This is stronger than storing geometry at annotation time.
 
-The executable pressure test deliberately creates two authored objects with **identical overlapping bounds**. They remain distinct because their identities are tied to different real shape slots, not rectangle matching. The test also annotates one rectangle and subsequently replaces the exact slot through `Painter::set`; end-of-pass evidence reports the final shape as a **circle**. That demonstrates the binding follows egui's paint handle rather than the shape originally submitted or its coincident geometry.
+The executable identity pressure test deliberately creates two authored objects with **identical overlapping bounds**. They remain distinct because their identities are tied to different real shape slots, not rectangle matching. The test also annotates one rectangle and subsequently replaces the exact slot through `Painter::set`; end-of-pass evidence reports the final shape as a **circle**. That demonstrates the binding follows egui's paint handle rather than the shape originally submitted or its coincident geometry.
 
-A second negative-control test annotates an ordinary frame when no exact capture was requested, then performs a later exact capture containing no authored objects. No old annotation leaks forward. Ordinary frames therefore do not accumulate custom-paint bookkeeping.
+A negative-control test annotates an ordinary frame when no exact capture was requested, then performs a later exact capture containing no authored objects. No old annotation leaks forward. Ordinary frames therefore do not accumulate custom-paint bookkeeping.
 
-The live showcase uses this path for exactly two Canvas objects:
+### Authored objects under clipping
+
+The authored-object layer now composes with the same bounding-box clipping semantics as generic paint.
+
+A separate executable test creates an authored 40×40 rectangle through a painter whose final finite clip preserves exactly a 20×40 half. End-of-pass handle verification observes:
+
+- final object bounds: 40×40;
+- final clip rect: 20×40 over the right half;
+- derived `visible_bounds`: the 20×40 intersection;
+- derived `visible_fraction`: `0.5`.
+
+`EguiAuthoredPaintObject::visible_bounds()` and `visible_fraction()` are therefore derived from the **final verified handle evidence**, not from the descriptor or geometry remembered at annotation time.
+
+The same caveat applies as for generic paint: `0.5` means half of the axis-aligned visual bounding rectangle survives the clip. It does **not** mean exactly half of the object's painted pixels or alpha survives.
+
+The correlated agent projection labels the fraction as `visible_fraction_evidence=derived_bbox_clip` so an agent does not silently strengthen the claim.
+
+The live showcase uses explicit authored identity for exactly two Canvas objects:
 
 - `showcase:painted-rectangle`;
 - `showcase:painted-circle`.
@@ -217,9 +234,8 @@ Likewise, the new authored binding proves a layer-local paint handle. ViewWitnes
 The next useful pressure cases are:
 
 - one authored object composed of multiple paint handles;
-- authored objects under finite clipping;
 - authored objects across multiple layers/windows;
-- replacement/reset of handles;
+- reset/removal semantics for bound handles;
 - safe mapping, if possible, from layer-local handles to flattened renderer order;
 - interaction between authored object identity and diffs across frames.
 
@@ -231,7 +247,7 @@ For now:
 
 - AccessKit semantic evidence belongs in canonical witnesses;
 - egui paint observations remain a research/integration structure;
-- bounding-box clip survival is deterministic derived evidence;
+- bounding-box clip survival is deterministic derived evidence for both generic and explicitly authored paint;
 - the continuous paint side channel transports egui-specific evidence without promoting it into the canonical model;
 - `EguiCorrelatedCapture` proves same-pass origin without implying generic widget↔paint identity;
 - explicitly instrumented custom paint can carry authored semantics plus an observed, end-of-pass-verified egui paint-handle binding;
