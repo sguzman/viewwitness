@@ -106,6 +106,8 @@ Notice what is intentionally absent:
 
 A coding agent could remove a conditional, change an offset calculation, introduce a helper, derive the center differently, or refactor the canvas code entirely. If the rebuilt GUI satisfies the evidence contract without collateral material damage, verification may accept it.
 
+Canonical AccessKit state is still preserved in the complete exact envelopes and diff, but restart-sensitive generated AccessKit identity/layout is not a blanket veto for this authored custom-paint case. A native pressure run showed the inspector subtree can reflow between application processes while the authored rendered evidence remains clean. Acceptance therefore follows the strongest continuity source actually available instead of pretending generated semantic identity is stronger than it is.
+
 ## Verifier acceptance semantics — clipping case
 
 For separated verification of the circle-center clipping defect, the same principle applies:
@@ -119,7 +121,7 @@ For separated verification of the circle-center clipping defect, the same princi
 
 Stage D is accepted at head `bb393d7cc6bc8aaba6aad68d34a625ebff69fd66`.
 
-The live native workflow now executes three distinct actors:
+The live native workflow executes three distinct actors:
 
 ```text
 scripts/m5-capture-handle-baseline.sh
@@ -145,7 +147,7 @@ full broken exact envelope
 focused handle evidence
 focused outline evidence
 GUI-state repair goal
-independent verifier command
+independent verifier boundary
 ```
 
 It must not receive:
@@ -158,9 +160,40 @@ reference patch
 reference patcher output
 ```
 
-The coding agent must discover the responsible source itself, choose its own repair, and leave a candidate tree for the independent verifier.
+The coding agent must discover the responsible source itself, choose its own repair, and emit a candidate patch for the independent verifier.
 
-The reference patcher remains useful only as a Stage-D control. It is not evidence of Stage-E completion.
+The reference patcher remains useful only as a Stage-D/control input. It is not evidence of Stage-E completion.
+
+## Stage E arena validation
+
+The infrastructure needed for a genuine Stage-E experiment is now validated at code head `3eda2d79c67e325152609db2ed10063de85775a8`.
+
+Ordinary CI run `34723502505` passed formatting, default tests, and all-features tests. Native `M5 Live Source Repair` run `34723502520` also passed end-to-end, including two new control steps:
+
+```text
+prepare recipe-free coding-agent sandbox
+    -> exercise trusted clean-worktree candidate gate
+```
+
+The sanitized agent package is built from committed broken `HEAD`, not a dirty patcher checkout. It contains buildable Cargo metadata plus `src/` and `examples/`, with the task/evidence beside the workspace, while historical tests, docs, scripts, prompts, CI, and verifier machinery are absent. This prevents the agent from reading the previous repair answer out of acceptance history.
+
+The trusted candidate gate then:
+
+```text
+validate patch paths
+    -> allow only examples/*.rs for this experiment
+    -> create fresh detached worktree from trusted HEAD
+    -> apply candidate patch there
+    -> build candidate application there
+    -> observe it with trusted ViewWitness tooling
+    -> judge it with the trusted mutation-free verifier
+```
+
+The control run recorded trusted head `3eda2d79c67e325152609db2ed10063de85775a8`, accepted only `examples/showcase.rs` as the candidate mutation surface, rebuilt the candidate in a detached worktree, and independently accepted the rendered handle reconnection.
+
+The control candidate was still produced by the Stage-D reference patcher. Therefore this validates the **arena and trust boundary**, not Stage E itself.
+
+Canonical arena provenance lives in `docs/acceptance/m5-stage-e-arena.md`.
 
 ## Acceptance stages
 
@@ -176,12 +209,18 @@ Stage F  multiple defects without recipe prompts
 Stage G  incomplete/ambiguous evidence pressure
 ```
 
+Stage E becomes accepted only when a real coding agent receives the sanitized package, locates the responsible source from ViewWitness evidence plus ordinary repository inspection, chooses/emits its own patch, and that patch passes the already-validated trusted gate.
+
 Later stages must not weaken the evidence/provenance guarantees established earlier.
 
-## Architectural rule
+## Architectural rules
 
 **The component that decides whether a GUI repair succeeded must not also encode how to perform that repair.**
 
-For Stage E and later, a second rule applies:
+For Stage E and later:
 
 **The task given to the coding agent describes the broken GUI state and acceptance evidence, not the expected source patch.**
+
+And the candidate must not own its judge:
+
+**Agent-authored application changes are reconstructed inside a fresh candidate tree while observation and acceptance execute from trusted code outside that mutation surface.**
