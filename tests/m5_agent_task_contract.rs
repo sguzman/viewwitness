@@ -58,4 +58,5 @@ fn trusted_agent_patch_gate_rejects_non_example_rust_mutations() {
     assert!(script.contains("worktree add --detach"));
     assert!(script.contains("m5-verify-handle-candidate.sh"));
     assert!(script.contains("candidate worktree only as the application build root"));
+    assert!(script.contains("bash \"$TRUSTED_ROOT/scripts/m5-verify-handle-candidate.sh\""));
 }
