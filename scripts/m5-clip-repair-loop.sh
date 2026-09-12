@@ -11,8 +11,8 @@ export LIBGL_ALWAYS_SOFTWARE=1
 XVFB_PID=""
 APP_PID=""
 SOURCE_PATH="examples/showcase.rs"
-HEALTHY_BINDING=$'&painter,\n                    "center",'
-CLIPPED_BINDING=$'&painter.with_clip_rect(egui::Rect::from_min_max(rect.min, rect.min)),\n                    "center",'
+BROKEN_EXPR='painter.with_clip_rect(egui::Rect::from_min_max(rect.min, rect.min))'
+FIXED_EXPR='painter.clone()'
 
 cleanup() {
   if [[ -n "$APP_PID" ]] && kill -0 "$APP_PID" 2>/dev/null; then
@@ -49,7 +49,7 @@ capture_state() {
   local label="$1"
   local captured=0
 
-  VIEWWITNESS_SHOWCASE_SCENARIO=misplaced-handle \
+  VIEWWITNESS_SHOWCASE_SCENARIO=clipped-center \
     target/debug/examples/showcase >"$OUT_DIR/${label}-showcase.log" 2>&1 &
   APP_PID=$!
 
@@ -97,21 +97,15 @@ Xvfb "$DISPLAY" -screen 0 1280x900x24 -nolisten tcp >"$OUT_DIR/xvfb.log" 2>&1 &
 XVFB_PID=$!
 sleep 1
 
-# 1. Introduce a qualitatively different source defect: correct center geometry,
-#    but a zero-area clip that makes only the keyed center fully invisible.
-replace_once "$HEALTHY_BINDING" "$CLIPPED_BINDING"
-git diff -- "$SOURCE_PATH" | tee "$OUT_DIR/source-defect.patch"
-grep -q 'with_clip_rect(egui::Rect::from_min_max(rect.min, rect.min))' "$OUT_DIR/source-defect.patch"
-
+# 1. Capture the checked-in deterministic clipping defect without mutating source.
 cargo build --example showcase --features showcase
 capture_state broken
 
-# 2. Repair only the clipping source and rebuild.
-replace_once "$CLIPPED_BINDING" "$HEALTHY_BINDING"
-git diff -- "$SOURCE_PATH" >"$OUT_DIR/source-after-repair.diff"
-if [[ -s "$OUT_DIR/source-after-repair.diff" ]]; then
-  echo "clip repair did not restore the checked-in source" >&2
-  cat "$OUT_DIR/source-after-repair.diff" >&2
+# 2. Repair only the clipped-center branch, rebuild, and recapture the same scenario.
+replace_once "$BROKEN_EXPR" "$FIXED_EXPR"
+git diff -- "$SOURCE_PATH" | tee "$OUT_DIR/source-repair.patch"
+if [[ ! -s "$OUT_DIR/source-repair.patch" ]]; then
+  echo "clip repair produced no source diff" >&2
   exit 1
 fi
 
