@@ -9,11 +9,14 @@ on:
       - "scripts/m5-source-repair-loop.sh"
       - "scripts/m5-clip-repair-loop.sh"
       - "scripts/m5-capture-handle-baseline.sh"
+      - "scripts/m5-capture-clip-baseline.sh"
       - "scripts/m5-reference-handle-patcher.sh"
       - "scripts/m5-verify-handle-candidate.sh"
+      - "scripts/m5-verify-clip-candidate.sh"
       - "scripts/m5-verify-agent-patch.sh"
       - "scripts/m5-prepare-agent-sandbox.sh"
       - "prompts/m5-handle-repair.md"
+      - "prompts/m5-clip-repair.md"
       - "examples/showcase.rs"
       - "src/**"
       - "Cargo.toml"
@@ -47,24 +50,39 @@ jobs:
       - name: Execute live clipping source repair loop
         run: bash scripts/m5-clip-repair-loop.sh
 
-      - name: Capture mutation-free broken baseline
+      - name: Capture mutation-free broken handle baseline
         run: bash scripts/m5-capture-handle-baseline.sh target/m5-separated/baseline
 
-      - name: Produce candidate with isolated reference patcher
+      - name: Produce handle candidate with isolated reference patcher
         run: bash scripts/m5-reference-handle-patcher.sh target/m5-separated/patcher
 
-      - name: Verify candidate without repair recipe
+      - name: Verify handle candidate without repair recipe
         run: bash scripts/m5-verify-handle-candidate.sh target/m5-separated/baseline target/m5-separated/verifier
 
-      - name: Prepare recipe-free coding-agent sandbox
-        run: bash scripts/m5-prepare-agent-sandbox.sh target/m5-separated/baseline target/m5-stage-e/agent-task
+      - name: Prepare recipe-free handle coding-agent sandbox
+        run: bash scripts/m5-prepare-agent-sandbox.sh target/m5-separated/baseline target/m5-stage-e/handle-agent-task handle
 
-      - name: Exercise trusted clean-worktree candidate gate
+      - name: Exercise trusted clean-worktree handle candidate gate
         run: |
           bash scripts/m5-verify-agent-patch.sh \
             target/m5-separated/baseline \
             target/m5-separated/patcher/candidate.patch \
-            target/m5-stage-e/reference-control
+            target/m5-stage-e/handle-reference-control \
+            handle
+
+      - name: Capture mutation-free broken clip baseline
+        run: bash scripts/m5-capture-clip-baseline.sh target/m5-clip-separated/baseline
+
+      - name: Prepare recipe-free clip coding-agent sandbox
+        run: bash scripts/m5-prepare-agent-sandbox.sh target/m5-clip-separated/baseline target/m5-stage-e/clip-agent-task clip
+
+      - name: Exercise trusted clean-worktree clip candidate gate
+        run: |
+          bash scripts/m5-verify-agent-patch.sh \
+            target/m5-clip-separated/baseline \
+            target/m5-clip-repair/source-repair.patch \
+            target/m5-stage-e/clip-reference-control \
+            clip
 
       - name: Preserve repair evidence
         if: always()
@@ -75,5 +93,6 @@ jobs:
             target/m5-source-repair/
             target/m5-clip-repair/
             target/m5-separated/
+            target/m5-clip-separated/
             target/m5-stage-e/
           if-no-files-found: error

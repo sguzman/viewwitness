@@ -2,10 +2,26 @@
 set -euo pipefail
 
 BASELINE_DIR="${1:-target/m5-separated/baseline}"
-PATCH_FILE="${2:?usage: m5-verify-agent-patch.sh BASELINE_DIR PATCH_FILE [OUT_DIR]}"
+PATCH_FILE="${2:?usage: m5-verify-agent-patch.sh BASELINE_DIR PATCH_FILE [OUT_DIR] [TASK_KIND]}"
 OUT_DIR="${3:-target/m5-stage-e/verifier}"
+TASK_KIND="${4:-handle}"
 
 TRUSTED_ROOT="$(pwd -P)"
+
+case "$TASK_KIND" in
+  handle)
+    VERIFIER_NAME="m5-verify-handle-candidate.sh"
+    ;;
+  clip)
+    VERIFIER_NAME="m5-verify-clip-candidate.sh"
+    ;;
+  *)
+    echo "unknown Stage E task kind: $TASK_KIND (expected handle or clip)" >&2
+    exit 1
+    ;;
+esac
+VERIFIER_PATH="$TRUSTED_ROOT/scripts/$VERIFIER_NAME"
+
 mkdir -p "$OUT_DIR"
 BASELINE_DIR="$(realpath "$BASELINE_DIR")"
 PATCH_FILE="$(realpath "$PATCH_FILE")"
@@ -54,9 +70,8 @@ for path in unique:
     print(f"  {path}")
 PY
 
-sha256sum "$TRUSTED_ROOT/scripts/m5-verify-handle-candidate.sh" \
-  | tee "$OUT_DIR/trusted-verifier.sha256"
-
+sha256sum "$VERIFIER_PATH" | tee "$OUT_DIR/trusted-verifier.sha256"
+printf '%s\n' "$TASK_KIND" | tee "$OUT_DIR/task-kind.txt"
 git -C "$TRUSTED_ROOT" rev-parse HEAD | tee "$OUT_DIR/trusted-head.txt"
 
 WORKTREE_BASE="$(mktemp -d "${TMPDIR:-/tmp}/viewwitness-m5-stage-e.XXXXXX")"
@@ -86,7 +101,6 @@ worktree_registered=1
 # The verifier is invoked from the trusted checkout through bash so verification
 # does not depend on the repository file's executable bit. It receives the fresh
 # candidate worktree only as the application build root.
-bash "$TRUSTED_ROOT/scripts/m5-verify-handle-candidate.sh" \
-  "$BASELINE_DIR" "$OUT_DIR" "$WORKTREE"
+bash "$VERIFIER_PATH" "$BASELINE_DIR" "$OUT_DIR" "$WORKTREE"
 
-echo "M5 trusted agent-patch verification succeeded"
+echo "M5 trusted agent-patch verification succeeded: kind=$TASK_KIND"
