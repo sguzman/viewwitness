@@ -71,7 +71,7 @@ fn inspect_exact_command(args: Vec<String>) -> io::Result<()> {
             _ if arg.starts_with('-') => {
                 return Err(invalid(format!("unknown inspect-exact option {arg:?}")));
             }
-            _ if path.replace(arg).is_some() => {
+            _ if path.replace(arg.clone()).is_some() => {
                 return Err(invalid("only one correlated capture path may be supplied"));
             }
             _ => {}
