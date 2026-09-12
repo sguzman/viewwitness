@@ -132,6 +132,27 @@ Stage E becomes accepted only when a real coding agent receives the sanitized pa
 
 The next experiment is therefore not another scripted transformation. It is the first genuine agent-produced patch through the already-validated arena.
 
-## Artifact hygiene note
+## Artifact hygiene follow-up
 
-This validation artifact is much larger than the evidence itself because the sandbox build output was captured under the uploaded Stage-E directory. That is workflow hygiene debt, not an acceptance failure. Future runs should move disposable Cargo build output outside the preserved evidence tree so artifacts contain the task/evidence/gate products rather than hundreds of megabytes of compilation intermediates.
+The original arena-validation artifact was `217,951,549` bytes because the sandbox's independent `cargo check` wrote compilation intermediates beneath the preserved Stage-E workspace.
+
+That workflow hygiene debt was removed at code head `6a7ee2b33060ca0c79f7e259465925005d65f4b5`. The sandbox still performs the independent buildability check, but sets `CARGO_TARGET_DIR` to a temporary directory outside the uploaded evidence tree and deletes it afterward.
+
+The follow-up validation remained fully green:
+
+```text
+ordinary CI run: 34723867313
+native M5 run:   34723867314
+```
+
+The same native workflow again passed both repair classes, mutation-free baseline capture, independent verification, recipe-free sandbox preparation, and the trusted clean-worktree candidate gate.
+
+The resulting `m5-live-source-repair-evidence` artifact is:
+
+```text
+artifact id: 10307550539
+size:        152,332 bytes
+sha256:      d4852b1574c20110d5eb7c401fc7e0d6a5ff87fa5fed54ad3905d1cea44f6c52
+```
+
+That is about `99.93%` smaller than the original artifact while preserving the acceptance evidence and task/gate products. Build intermediates are no longer treated as evidence.
