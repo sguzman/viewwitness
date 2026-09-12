@@ -54,33 +54,30 @@ for path in unique:
     print(f"  {path}")
 PY
 
-(
-  cd "$TRUSTED_ROOT"
-  git apply --check "$PATCH_FILE"
-)
-
 sha256sum "$TRUSTED_ROOT/scripts/m5-verify-handle-candidate.sh" \
   | tee "$OUT_DIR/trusted-verifier.sha256"
 
 git -C "$TRUSTED_ROOT" rev-parse HEAD | tee "$OUT_DIR/trusted-head.txt"
 
-WORKTREE="$(mktemp -d "${TMPDIR:-/tmp}/viewwitness-m5-stage-e.XXXXXX")"
+WORKTREE_BASE="$(mktemp -d "${TMPDIR:-/tmp}/viewwitness-m5-stage-e.XXXXXX")"
+WORKTREE="$WORKTREE_BASE/candidate"
 worktree_registered=0
 cleanup() {
   if [[ "$worktree_registered" -eq 1 ]]; then
     git -C "$TRUSTED_ROOT" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || true
   fi
-  rm -rf "$WORKTREE" >/dev/null 2>&1 || true
+  rm -rf "$WORKTREE_BASE" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-# Candidate verification always begins from the trusted committed baseline,
-# never from the coding agent's mutable checkout.
+# Candidate verification always begins from trusted committed HEAD, never from
+# the coding agent's mutable checkout or the caller's current working-tree state.
 git -C "$TRUSTED_ROOT" worktree add --detach "$WORKTREE" HEAD
 worktree_registered=1
 
 (
   cd "$WORKTREE"
+  git apply --check "$PATCH_FILE"
   git apply "$PATCH_FILE"
   git diff --check
   git diff --binary >"$OUT_DIR/applied-candidate.patch"
