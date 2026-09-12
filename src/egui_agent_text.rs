@@ -3,8 +3,9 @@ use std::fmt::Write as _;
 use serde::Serialize;
 
 use crate::{
-    EguiAuthoredBindingChange, EguiAuthoredBindingDelta, EguiAuthoredPaintObject,
-    EguiCorrelatedCapture, EguiCorrelatedDiff, Rect, diff_to_agent_text, to_agent_text,
+    EguiAuthoredBindingChange, EguiAuthoredBindingDelta, EguiAuthoredPaintBinding,
+    EguiAuthoredPaintObject, EguiCorrelatedCapture, EguiCorrelatedDiff, Rect, diff_to_agent_text,
+    to_agent_text,
 };
 
 /// Project an exact correlated egui capture into deterministic agent-oriented
@@ -43,78 +44,16 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
 
     output.push_str(&to_agent_text(&capture.witness));
 
-    let mut authored: Vec<_> = capture.authored_objects.iter().collect();
-    authored.sort_by(|a, b| (&a.id, &a.role, &a.name).cmp(&(&b.id, &b.role, &b.name)));
-    for (object_index, object) in authored.into_iter().enumerate() {
-        write!(
-            output,
-            "authored-object index={} id={} role={}",
-            object_index,
-            json(&object.id),
-            json(&object.role),
-        )
-        .expect("writing to String cannot fail");
-        if let Some(name) = &object.name {
-            write!(output, " name={}", json(name)).expect("writing to String cannot fail");
-        }
-        writeln!(
-            output,
-            " semantic_evidence={} binding_count={}",
-            json(&object.semantic_evidence),
-            object.bindings.len(),
-        )
-        .expect("writing to String cannot fail");
-
+    for (object_index, object) in sorted_authored_objects(capture).into_iter().enumerate() {
+        write_capture_object(&mut output, object_index, object);
         for (binding_index, binding) in object.bindings.iter().enumerate() {
-            write!(
-                output,
-                "authored-binding object_index={} binding_index={} object_id={}",
+            write_capture_binding(
+                &mut output,
                 object_index,
                 binding_index,
-                json(&object.id),
-            )
-            .expect("writing to String cannot fail");
-            if let Some(binding_id) = &binding.authored_binding_id {
-                write!(output, " authored_binding_id={}", json(binding_id))
-                    .expect("writing to String cannot fail");
-            }
-            write!(
-                output,
-                " binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
-                json(&binding.binding_evidence),
-                json(&binding.layer_order),
-                binding.layer_id,
-                binding.shape_index,
-                binding.verified_at_end_pass,
-            )
-            .expect("writing to String cannot fail");
-            if let Some(kind) = binding.kind {
-                write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");
-            }
-            if let Some(bounds) = binding.bounds {
-                write!(output, " bounds={}", rect(bounds)).expect("writing to String cannot fail");
-            }
-            match binding.clip_rect {
-                Some(clip) => write!(output, " clip={}", rect(clip)),
-                None => write!(output, " clip=unbounded"),
-            }
-            .expect("writing to String cannot fail");
-
-            if binding.bounds.is_some() {
-                write!(
-                    output,
-                    " visible_fraction={} visible_fraction_evidence=derived_bbox_clip",
-                    binding.visible_fraction(),
-                )
-                .expect("writing to String cannot fail");
-                if let Some(visible) = binding.visible_bounds() {
-                    write!(output, " visible_bounds={}", rect(visible))
-                        .expect("writing to String cannot fail");
-                } else {
-                    write!(output, " visible_bounds=none").expect("writing to String cannot fail");
-                }
-            }
-            output.push('\n');
+                &object.id,
+                binding,
+            );
         }
     }
 
@@ -150,6 +89,88 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
             write!(output, " visible_bounds=none").expect("writing to String cannot fail");
         }
         output.push('\n');
+    }
+
+    output
+}
+
+/// Focus the agent projection on one authored object ID and, optionally, one
+/// authored binding ID without mutating or pretending to replace the underlying
+/// correlated capture.
+///
+/// This is explicitly a **projection**, not a smaller witness. Canonical semantic
+/// nodes and generic anonymous paint are omitted and the header says so. Request,
+/// viewport, pass, and same-full-output provenance are retained. Duplicate object
+/// or binding IDs are never collapsed: every match is emitted and the header
+/// reports match counts.
+#[must_use]
+pub fn correlated_capture_authored_focus_to_agent_text(
+    capture: &EguiCorrelatedCapture,
+    object_id: &str,
+    binding_id: Option<&str>,
+) -> String {
+    let authored = sorted_authored_objects(capture);
+    let object_match_count = authored
+        .iter()
+        .filter(|object| object.id == object_id)
+        .count();
+    let binding_match_count: usize = authored
+        .iter()
+        .filter(|object| object.id == object_id)
+        .map(|object| match binding_id {
+            Some(binding_id) => object
+                .bindings
+                .iter()
+                .filter(|binding| binding.authored_binding_id.as_deref() == Some(binding_id))
+                .count(),
+            None => object.bindings.len(),
+        })
+        .sum();
+
+    let mut output = String::new();
+    write!(
+        output,
+        "egui-correlated-focus request={} viewport_id={} pass={} viewport_rect=[{},{},{},{}] object_id={}",
+        capture.request_id,
+        capture.viewport_id,
+        capture.pass_nr,
+        capture.viewport_rect.x,
+        capture.viewport_rect.y,
+        capture.viewport_rect.width,
+        capture.viewport_rect.height,
+        json(&object_id),
+    )
+    .expect("writing to String cannot fail");
+    if let Some(binding_id) = binding_id {
+        write!(output, " binding_id={}", json(&binding_id)).expect("writing to String cannot fail");
+    }
+    writeln!(
+        output,
+        " object_match_count={} binding_match_count={} correlation=same_full_output projection=authored_focus omitted=canonical_semantics,generic_paint",
+        object_match_count,
+        binding_match_count,
+    )
+    .expect("writing to String cannot fail");
+
+    for (object_index, object) in authored.into_iter().enumerate() {
+        if object.id != object_id {
+            continue;
+        }
+        write_capture_object(&mut output, object_index, object);
+        for (binding_index, binding) in object.bindings.iter().enumerate() {
+            if binding_id.is_some_and(|binding_id| {
+                binding.authored_binding_id.as_deref() != Some(binding_id)
+            }) {
+                continue;
+            }
+            write_capture_binding(
+                &mut output,
+                object_index,
+                binding_index,
+                &object.id,
+                binding,
+            );
+        }
     }
 
     output
@@ -243,6 +264,91 @@ pub fn correlated_diff_to_agent_text(diff: &EguiCorrelatedDiff) -> String {
     }
 
     output
+}
+
+fn sorted_authored_objects(capture: &EguiCorrelatedCapture) -> Vec<&EguiAuthoredPaintObject> {
+    let mut authored: Vec<_> = capture.authored_objects.iter().collect();
+    authored.sort_by(|a, b| (&a.id, &a.role, &a.name).cmp(&(&b.id, &b.role, &b.name)));
+    authored
+}
+
+fn write_capture_object(output: &mut String, object_index: usize, object: &EguiAuthoredPaintObject) {
+    write!(
+        output,
+        "authored-object index={} id={} role={}",
+        object_index,
+        json(&object.id),
+        json(&object.role),
+    )
+    .expect("writing to String cannot fail");
+    if let Some(name) = &object.name {
+        write!(output, " name={}", json(name)).expect("writing to String cannot fail");
+    }
+    writeln!(
+        output,
+        " semantic_evidence={} binding_count={}",
+        json(&object.semantic_evidence),
+        object.bindings.len(),
+    )
+    .expect("writing to String cannot fail");
+}
+
+fn write_capture_binding(
+    output: &mut String,
+    object_index: usize,
+    binding_index: usize,
+    object_id: &str,
+    binding: &EguiAuthoredPaintBinding,
+) {
+    write!(
+        output,
+        "authored-binding object_index={} binding_index={} object_id={}",
+        object_index,
+        binding_index,
+        json(&object_id),
+    )
+    .expect("writing to String cannot fail");
+    if let Some(binding_id) = &binding.authored_binding_id {
+        write!(output, " authored_binding_id={}", json(binding_id))
+            .expect("writing to String cannot fail");
+    }
+    write!(
+        output,
+        " binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
+        json(&binding.binding_evidence),
+        json(&binding.layer_order),
+        binding.layer_id,
+        binding.shape_index,
+        binding.verified_at_end_pass,
+    )
+    .expect("writing to String cannot fail");
+    if let Some(kind) = binding.kind {
+        write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");
+    }
+    if let Some(bounds) = binding.bounds {
+        write!(output, " bounds={}", rect(bounds)).expect("writing to String cannot fail");
+    }
+    match binding.clip_rect {
+        Some(clip) => write!(output, " clip={}", rect(clip)),
+        None => write!(output, " clip=unbounded"),
+    }
+    .expect("writing to String cannot fail");
+
+    if binding.bounds.is_some() {
+        write!(
+            output,
+            " visible_fraction={} visible_fraction_evidence=derived_bbox_clip",
+            binding.visible_fraction(),
+        )
+        .expect("writing to String cannot fail");
+        if let Some(visible) = binding.visible_bounds() {
+            write!(output, " visible_bounds={}", rect(visible))
+                .expect("writing to String cannot fail");
+        } else {
+            write!(output, " visible_bounds=none").expect("writing to String cannot fail");
+        }
+    }
+    output.push('\n');
 }
 
 fn write_authored_delta(output: &mut String, prefix: &str, object: &EguiAuthoredPaintObject) {
