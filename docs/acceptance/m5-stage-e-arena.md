@@ -156,3 +156,64 @@ sha256:      d4852b1574c20110d5eb7c401fc7e0d6a5ff87fa5fed54ad3905d1cea44f6c52
 ```
 
 That is about `99.93%` smaller than the original artifact while preserving the acceptance evidence and task/gate products. Build intermediates are no longer treated as evidence.
+
+## Dual-task Stage-E arena follow-up
+
+The arena is now validated against **two qualitatively different recipe-free task surfaces**, not just the misplaced-handle geometry case.
+
+Code-bearing integration head:
+
+```text
+1a526beb26aa97e800fa32b481861d351410abde
+```
+
+Native `M5 Live Source Repair` run `34725470386` passed the complete control topology for both task kinds:
+
+```text
+handle
+  -> mutation-free broken baseline
+  -> recipe-free sanitized workspace
+  -> trusted fresh-worktree gate
+  -> trusted handle verifier
+
+clip
+  -> mutation-free clipped-center baseline
+  -> recipe-free sanitized workspace
+  -> trusted fresh-worktree gate
+  -> trusted clip verifier
+```
+
+The trusted gate now selects the verifier from an explicit task kind while preserving the same candidate mutation boundary (`examples/*.rs`) and detached trusted-worktree reconstruction.
+
+The handle control reproduced the accepted rendered repair:
+
+```text
+baseline handle:  [513,215,10,10]
+candidate handle: [453,215,10,10]
+outline:          [307,169,152,102] unchanged
+```
+
+The clipping control exercised a materially different acceptance predicate:
+
+```text
+center bounds:           [639,321,8,8] unchanged
+center visible_fraction: 0 -> 1
+center clip:             [238,100,0,0] -> [238,100,554,360]
+ring bounds:             [590,272,106,106] unchanged
+```
+
+`diff-exact` reported the center `clip_rect` change rather than a geometry change, and the independent clip verifier accepted only after the center became fully visible while the sibling ring remained materially stable.
+
+The preserved evidence artifact for that native run is:
+
+```text
+artifact id: 10307852266
+size:        271,847 bytes
+sha256:      1077e520b842ebb3dd3b9aa3aba8f5fb06de774df8f774f7612790922fc3d22b
+```
+
+The current post-contract-test head `4cd6bbfc64733c9077c9b0652ec49607375ba559` then passed ordinary formatting, default tests, and all-features CI in run `34725563814`. The commits after the native run only corrected/ formatted showcase contract tests; they did not change the dual-task arena implementation exercised above.
+
+This closes the previous one-defect pressure on the **arena**. It does not change the Stage-E acceptance boundary: both accepted candidate patches in this workflow were known-good controls. No real coding agent has yet received either sanitized package and independently chosen the repair.
+
+**Stage-E arena: dual-task validated. Stage-E autonomous repair: still open.**
