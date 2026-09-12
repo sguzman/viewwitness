@@ -33,7 +33,7 @@ fn authored_focus_preserves_duplicate_object_matches() {
 
     assert!(text.contains("object_match_count=2 binding_match_count=2"));
     assert_eq!(text.matches("authored-object index=").count(), 2);
-    assert_eq!(text.matches("object_id=\"duplicate\"").count(), 2);
+    assert_eq!(text.matches("authored-binding object_index=").count(), 2);
     assert!(text.contains("authored-object index=0 id=\"duplicate\" role=\"first\""));
     assert!(text.contains("authored-object index=1 id=\"duplicate\" role=\"second\""));
 }
