@@ -1,6 +1,6 @@
 # M5 coding-agent task — repair the disconnected rendered handle
 
-You are working in a deliberately broken Rust + egui application workspace.
+You are working in a deliberately broken Rust + egui application workspace. Work from the `workspace/` directory inside this task package.
 
 Your job is to diagnose and repair the application source from the supplied ViewWitness evidence. Do not modify or replace the evidence files.
 
@@ -21,12 +21,12 @@ binding_id="handle"
 
 The broken evidence shows that the handle is vertically aligned with the rectangle but horizontally disconnected from it. The rectangle outline itself is the reference geometry and should not move materially.
 
-The complete broken correlated capture and focused projections are available in the sibling `evidence/` directory:
+The complete broken correlated capture and focused projections are available in the sibling `evidence/` directory. From `workspace/`, they are:
 
 ```text
-evidence/broken.yaml
-evidence/handle-focus.txt
-evidence/outline-focus.txt
+../evidence/broken.yaml
+../evidence/handle-focus.txt
+../evidence/outline-focus.txt
 ```
 
 Use those files as observed GUI testimony. You may inspect the application source normally and decide for yourself which code is responsible.
