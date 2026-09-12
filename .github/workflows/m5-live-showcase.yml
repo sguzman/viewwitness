@@ -8,6 +8,9 @@ on:
       - "scripts/m5-live-showcase.sh"
       - "scripts/m5-source-repair-loop.sh"
       - "scripts/m5-clip-repair-loop.sh"
+      - "scripts/m5-capture-handle-baseline.sh"
+      - "scripts/m5-reference-handle-patcher.sh"
+      - "scripts/m5-verify-handle-candidate.sh"
       - "examples/showcase.rs"
       - "src/**"
       - "Cargo.toml"
@@ -41,6 +44,15 @@ jobs:
       - name: Execute live clipping source repair loop
         run: bash scripts/m5-clip-repair-loop.sh
 
+      - name: Capture mutation-free broken baseline
+        run: bash scripts/m5-capture-handle-baseline.sh target/m5-separated/baseline
+
+      - name: Produce candidate with isolated reference patcher
+        run: bash scripts/m5-reference-handle-patcher.sh target/m5-separated/patcher
+
+      - name: Verify candidate without repair recipe
+        run: bash scripts/m5-verify-handle-candidate.sh target/m5-separated/baseline target/m5-separated/verifier
+
       - name: Preserve repair evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -49,4 +61,5 @@ jobs:
           path: |
             target/m5-source-repair/
             target/m5-clip-repair/
+            target/m5-separated/
           if-no-files-found: error
