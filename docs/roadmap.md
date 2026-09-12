@@ -96,7 +96,7 @@ showcase:painted-circle    -> ring, center
 
 Canvas background/text remain anonymous generic paint so instrumentation never pretends to semanticize the entire renderer.
 
-The showcase also contains a guarded `Misplaced canvas handle` pressure switch. When enabled, only the rectangle's keyed `handle` is displaced while its keyed `outline` remains fixed. This is the canonical live broken-state target for M5 and is deterministically launchable with `VIEWWITNESS_SHOWCASE_SCENARIO=misplaced-handle`.
+The showcase contains deterministic pressure scenarios for both a misplaced rectangle handle and a clipped circle center. They provide two qualitatively different rendered-defect classes for M5 rather than one memorized offset recipe.
 
 ## M3 — diff and continuity
 
@@ -173,74 +173,122 @@ The focused header retains request/pass/viewport correlation metadata, reports o
 
 ## M5 — agent verification loop
 
-**First live source-edit acceptance established.**
+**Stages A–D accepted. Stage-E agent arena validated. Real agent-produced repair pending.**
 
-The target workflow is:
+The durable target loop is:
 
 ```text
 capture
     -> diagnose concrete defect
-    -> modify application source
-    -> rebuild/restart
-    -> recapture
+    -> coding agent chooses source repair
+    -> rebuild/restart candidate
+    -> recapture with trusted observer
     -> diff
-    -> verify the intended state changed without hiding unrelated churn
+    -> verify intended state changed without hiding unrelated authored churn
 ```
 
-Earlier real-egui probes established the evidence language in isolation: one authored `diagram_node` with keyed `body` and `handle` parts could be repaired while unrelated prefix paint changed renderer slots. The accepted diff isolated `handle.bounds` as material and renderer-handle churn as non-material.
+### Accepted evidence and source-repair slices
 
-That evidence model has now crossed the **live native source-edit boundary**. The dedicated `M5 Live Source Repair` workflow runs the real eframe showcase under Xvfb and executes this sequence in one isolated workspace:
+The first native repair class is a rectangle whose keyed `handle` is horizontally disconnected from its keyed `outline`. Exact rendered evidence isolates `handle.bounds` as the intended material change while the outline remains stable.
+
+The second repair class is qualitatively different: a circle's keyed `center` is clipped to zero visible area while the keyed `ring` remains visible. Its accepted repair changes clip evidence rather than object geometry. This prevents M5 from collapsing into one memorized handle-offset recipe.
+
+These live source-edit experiments established Stages B and C, but their patch transformations were still harness-controlled.
+
+### Stage D — patcher/verifier separation
+
+**Accepted.**
+
+The handle case was split into three executable actors:
 
 ```text
-launch checked-in broken showcase
-    -> exact live capture
-    -> focused inspect showcase:painted-rectangle / handle
-    -> edit examples/showcase.rs
-    -> rebuild native showcase
-    -> relaunch same deterministic scenario
-    -> exact live recapture
-    -> diff-exact broken.yaml fixed.yaml
-    -> machine-check the repair
+mutation-free baseline observer
+    -> isolated reference patcher
+    -> mutation-free independent verifier
 ```
 
-The accepted source edit was:
+The verifier does not contain the expected source file, broken expression, replacement expression, patch application, or source restoration logic. It accepts a candidate from observed state predicates instead:
 
-```diff
--        first.right_center() + egui::vec2(60.0, 0.0)
-+        first.right_center() + egui::vec2(0.0, 0.0)
-```
+- rectangle, `outline`, and `handle` remain uniquely identifiable;
+- exact capture remains `same_full_output`;
+- outline geometry remains stable;
+- handle y-position and size remain stable;
+- handle materially changes from the broken baseline;
+- candidate handle geometrically reconnects to the outline;
+- no extra authored-binding material change or identity ambiguity is introduced.
 
-Observed exact evidence on the accepted run:
+The verifier deliberately does **not** require a particular source-level displacement magnitude or patch shape.
+
+Canonical Stage-D provenance lives in `docs/acceptance/m5-separated-patcher-verifier.md`.
+
+### Stage E — recipe-free coding-agent boundary
+
+**Arena validated; Stage E itself remains open.**
+
+Stage E removes the repair recipe from the coding-agent side as well. The task in `prompts/m5-handle-repair.md` describes the broken rendered state and acceptance goal, not the expected source path or transformation.
+
+The agent-visible package is generated from committed broken `HEAD` and contains:
 
 ```text
-broken handle:  [513,215,10,10]
-fixed handle:   [453,215,10,10]
-outline before: [307,169,152,102]
-outline after:  [307,169,152,102]
+TASK.md
+evidence/broken.yaml
+evidence/handle-focus.txt
+evidence/outline-focus.txt
+workspace/Cargo.toml
+workspace/src/**
+workspace/examples/**
 ```
 
-`diff-exact` reported exactly the named rendered sub-part material change:
+Historical tests, docs, scripts, prompts, CI, and verifier machinery are excluded so the coding agent cannot simply read the previous answer out of the repository's acceptance history.
+
+A candidate patch then crosses a trusted boundary:
 
 ```text
-authored-binding-change object_id="showcase:painted-rectangle" authored_binding_id="handle" field="bounds" before={"height":10.0,"width":10.0,"x":513.0,"y":215.0} after={"height":10.0,"width":10.0,"x":453.0,"y":215.0}
+agent.patch
+    -> validate mutation surface
+    -> fresh detached worktree from trusted HEAD
+    -> apply patch only there
+    -> build candidate showcase there
+    -> trusted ViewWitness CLI observes candidate
+    -> trusted verifier decides acceptance
 ```
 
-The harness rejects outline material movement, object/binding ambiguity, movement other than 60 logical pixels left, or any handle change outside its x position. All assertions passed.
+For the current experiment the candidate mutation surface is restricted to `examples/*.rs`, keeping ViewWitness implementation, tests, CI, task text, and verifier outside agent authority.
 
-The checked-in showcase intentionally remains broken. The workflow repairs only its isolated checkout and restores the file during cleanup, preserving a deterministic defect for repeated experiments.
+This arena was validated on code head `3eda2d79c67e325152609db2ed10063de85775a8`: ordinary CI run `34723502505` passed format/default/all-features, and native M5 run `34723502520` passed the sanitized-workspace build plus trusted clean-worktree candidate gate. The Stage-D reference patch was used only as a transport/control input for that validation.
 
-Canonical acceptance details and artifact provenance live in `docs/acceptance/m5-live-source-repair.md`. The executable orchestration lives in `scripts/m5-source-repair-loop.sh` and `.github/workflows/m5-live-showcase.yml`.
+That distinction is load-bearing: **a reference patch passing the Stage-E gate is not Stage-E agent inference.**
 
-This **does not yet prove arbitrary autonomous GUI repair**. The repair target and transformation are deliberately constrained. The next M5 pressure is to remove scaffolding in stages:
+Canonical arena provenance lives in `docs/acceptance/m5-stage-e-arena.md`. The trust contract lives in `docs/agent-patch-contract.md`.
 
-- give an agent the live focused evidence and repository without pre-encoding the exact replacement string in the harness;
-- require it to locate the responsible source from evidence plus code search;
-- let the agent choose and apply the patch through the normal coding workflow;
-- rerun the same external verification independently of the patching agent;
-- add a second defect class so success cannot collapse into memorizing one handle-offset recipe;
-- eventually test diagnosis where semantic, authored-paint, and raster evidence disagree or are incomplete.
+A native pressure run also showed why acceptance must remain epistemically scoped: AccessKit debug-inspector nodes can reflow across process restarts because generated identity/layout is structure-sensitive. Those canonical semantic diffs remain preserved evidence, but they are not promoted into a blanket collateral-change veto for an authored custom-paint repair whose stronger continuity source is its explicit authored object/binding identity.
 
-MCP remains a plausible integration surface later, but the canonical model must remain independent of MCP. Observation and control stay conceptually separate; ViewWitness must remain useful without mutation authority.
+### Next M5 pressure
+
+The next experiment is deliberately simple to state and impossible to credit to another scripted replacement:
+
+```text
+real coding agent
+    receives sanitized Stage-E package
+    -> reads ViewWitness evidence
+    -> inspects ordinary source
+    -> locates responsible code itself
+    -> chooses and emits its own patch
+    -> trusted gate reconstructs and verifies candidate
+```
+
+Only successful completion of that experiment promotes Stage E from `current` to `accepted`.
+
+After that:
+
+```text
+Stage F  multiple defects/tasks without recipe-specific prompting
+Stage G  incomplete, contradictory, or ambiguous evidence pressure
+```
+
+Stage F should include more than one defect class per agent-facing task family so success cannot degrade into memorizing one source idiom. Stage G should deliberately pressure disagreement or incompleteness among semantic, authored-paint, geometry, and raster evidence and require uncertainty to remain visible rather than guessed away.
+
+MCP remains a plausible integration surface later, but the canonical model and verification architecture must remain independent of MCP. Observation and control stay conceptually separate; ViewWitness must remain useful without mutation authority.
 
 ## Open rendered-evidence research
 
@@ -269,5 +317,7 @@ The architecture may permit these. The roadmap does not currently pursue them.
 Architecture, ontology, format design, example design, review, and integration remain director work.
 
 Good bounded delegation surfaces include repetitive mappings, showcase gallery expansion after acceptance cases are fixed, CLI polish after behavior is established, and mechanical protocol/tooling work.
+
+A real Stage-E run is also an appropriate Codex delegation surface precisely because the trust boundary is now external to the coding agent: Codex may own the repair hypothesis, while ViewWitness retains independent observation and acceptance authority.
 
 The director should continue implementing small semantic slices directly when that helps establish the contract. Codex multiplies mechanical throughput; it does not inherit architectural authority.
