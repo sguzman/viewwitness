@@ -87,7 +87,7 @@ Established exact same-pass slice:
 - protocol v2 external exact capture on `:5721`;
 - deterministic structured and agent-text projections.
 
-The live Canvas pressure case now exposes and guards four keyed bindings directly:
+The live Canvas pressure case exposes and guards four keyed bindings directly:
 
 ```text
 showcase:painted-rectangle -> outline, handle
@@ -95,6 +95,8 @@ showcase:painted-circle    -> ring, center
 ```
 
 Canvas background/text remain anonymous generic paint so instrumentation never pretends to semanticize the entire renderer.
+
+The showcase also contains a guarded `Misplaced canvas handle` pressure switch. When enabled, only the rectangle's keyed `handle` is displaced while its keyed `outline` remains fixed. This is now the canonical live broken-state target for M5.
 
 ## M3 — diff and continuity
 
@@ -126,27 +128,29 @@ A real egui experiment proved unrelated prefix paint can shift `ShapeIdx` while 
 Remaining diff pressure:
 
 - richer exact transitions from real application/showcase defects;
+- focused diff projection if the real agent loop demonstrates that full correlated diffs are unnecessarily noisy;
 - avoid generic anonymous paint diffing until a trustworthy continuity source exists;
 - expose matching basis whenever future reconciliation becomes more sophisticated.
 
 ## M4 — operator tooling
 
-**Useful capture/verification loop established.**
+**Useful capture/inspection/verification loop established.**
 
 The unified CLI includes:
 
 ```text
 viewwitness validate <file>
 viewwitness inspect <file> [--agent|--yaml]
+viewwitness inspect-exact <file> [--agent|--yaml] [--object=ID [--binding=ID]]
 viewwitness derive <file> [--agent|--yaml]
 viewwitness diff <before> <after> [--agent|--yaml]
 viewwitness capture [address] [--agent|--yaml] [--derive] [--settle=N]
-viewwitness capture-exact [address] [--agent|--yaml] [--derive]
+viewwitness capture-exact [address] [--agent|--yaml] [--derive] [--object=ID [--binding=ID]]
 viewwitness diff-exact <before> <after> [--agent|--yaml]
 viewwitness screenshot <output.png> [--address=HOST:PORT] [--scale=N]
 ```
 
-The exact workflow is deliberately composable:
+The full exact workflow remains deliberately composable:
 
 ```text
 capture-exact --yaml > before.yaml
@@ -155,11 +159,21 @@ capture-exact --yaml > after.yaml
 diff-exact before.yaml after.yaml
 ```
 
-`diff-exact` compares saved correlated captures only. It does not secretly perform actions or recapture state. Agent text remains the default; YAML remains the structured interchange/debug form.
+Focused exact inspection is a smaller **agent-text projection**, not a replacement envelope:
+
+```text
+inspect-exact before.yaml --object=showcase:painted-rectangle
+inspect-exact before.yaml --object=showcase:painted-rectangle --binding=handle
+capture-exact --object=showcase:painted-rectangle --binding=handle
+```
+
+The focused header retains request/pass/viewport correlation metadata, reports object/binding match counts, and explicitly says `projection=authored_focus` plus `omitted=canonical_semantics,generic_paint`. Duplicate object or binding IDs remain multiple visible matches; zero matches remain explicit. Focused YAML is rejected because that projection is not a complete correlated envelope. `--binding` requires `--object`, and focused inspection cannot be combined with canonical geometry derivation.
+
+`diff-exact` compares saved correlated captures only. It does not secretly perform actions or recapture state. Agent text remains the default; YAML remains the structured interchange/debug form for complete envelopes and diffs.
 
 ## M5 — agent verification loop
 
-**First executable slice established.**
+**First executable slice plus live broken target established.**
 
 The target workflow is:
 
@@ -172,7 +186,7 @@ capture
     -> verify the intended state changed without hiding unrelated churn
 ```
 
-The first real-egui verification probe now executes the evidence half of this loop end to end. It captures one authored `diagram_node` with keyed `body` and `handle` parts in a broken state, then captures a fixed state after also inserting unrelated prefix paint.
+The first real-egui verification probe executes the evidence half of this loop end to end. It captures one authored `diagram_node` with keyed `body` and `handle` parts in a broken state, then captures a fixed state after also inserting unrelated prefix paint.
 
 The accepted result is intentionally precise:
 
@@ -183,9 +197,26 @@ false noise:  no body material change
 false blob:   no object-level field="bindings"
 ```
 
-This forced a useful contract improvement: authored binding changes are now first-class and field-granular, so an agent can see exactly which named rendered sub-part changed rather than re-diffing an opaque binding collection itself.
+This forced a useful contract improvement: authored binding changes are first-class and field-granular, so an agent can see exactly which named rendered sub-part changed rather than re-diffing an opaque binding collection itself.
 
-What M5 has **not** yet proven is autonomous source modification. The next step is to apply the same observation → edit → recapture → verification discipline against an actual intentionally broken showcase scenario, with source changes performed outside the GUI thread and verification based on ViewWitness evidence rather than visual assertion alone.
+The same defect shape now exists in the **running showcase**. On the Canvas page, `Misplaced canvas handle` displaces only `showcase:painted-rectangle`'s keyed `handle`. Focused exact inspection can isolate that object or binding without forcing an agent to consume the entire semantic tree and generic renderer list.
+
+What M5 has **not** yet proven is autonomous source modification. The next acceptance case is now concrete rather than hypothetical:
+
+```text
+run showcase
+    -> enable Misplaced canvas handle
+    -> capture full broken envelope
+    -> focus inspection on showcase:painted-rectangle / handle
+    -> diagnose source responsible for the displacement
+    -> edit source outside the GUI thread
+    -> rebuild/restart as needed
+    -> recapture full envelope
+    -> diff-exact broken vs fixed
+    -> verify the named handle changed as intended without unrelated false material changes
+```
+
+Turning the pressure switch off can prove live state/action verification, but it does **not** count as source-edit proof. The source-edit milestone remains open until the application code itself is changed and the recaptured evidence demonstrates the fix.
 
 MCP remains a plausible integration surface later, but the canonical model must remain independent of MCP. Observation and control stay conceptually separate; ViewWitness must remain useful without mutation authority.
 
