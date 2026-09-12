@@ -176,7 +176,7 @@ Binding matching inside a uniquely matched object:
 - no authored binding ID → match conservatively by relative unkeyed ordinal;
 - keyed and unkeyed bindings may coexist.
 
-Material binding state excludes `shape_index`. It includes evidence/layer/verification/kind/bounds/clip. Binding additions and removals are first-class. Material changes are also first-class and field-granular through `EguiAuthoredBindingChange`, so a move can be represented as exactly `handle.bounds` rather than one opaque object-level `bindings` replacement.
+Material binding state excludes `shape_index`. It includes evidence/layer/verification/kind/bounds/clip. Binding additions and removals are first-class. Material changes are field-granular through `EguiAuthoredBindingChange`, so a move can be represented as exactly `handle.bounds` rather than one opaque object-level `bindings` replacement.
 
 Pure slot churn becomes `EguiAuthoredExecutionHandleChange` with `material=false`. If a binding has a material field change and its execution slot also churns, ViewWitness reports the material change and does not double-count the slot movement for that binding.
 
@@ -202,14 +202,29 @@ For example, a keyed handle movement is projected directly as:
 authored-binding-change object_id="agent-loop:node" authored_binding_id="handle" field="bounds" ...
 ```
 
+### Focused exact projection
+
+The full `EguiCorrelatedCapture` remains the exact evidence envelope. `correlated_capture_authored_focus_to_agent_text` is a deliberately smaller projection for a diagnosis task that already knows the authored object of interest.
+
+It selects a required object ID and optional binding ID while retaining the exact capture's request/pass/viewport origin. The first line identifies its epistemic limits:
+
+```text
+projection=authored_focus omitted=canonical_semantics,generic_paint
+```
+
+The header also carries `object_match_count` and `binding_match_count`. These counts are not cosmetic: duplicate authored IDs are preserved as multiple records rather than silently choosing one, while zero matches are explicit. Original object and binding indices remain visible.
+
+This projection is intentionally **agent text only**. It is not serialized as YAML because it is not a complete correlated envelope and should not be mistaken for one. Likewise, canonical geometry derivation is not run over a projection that explicitly omitted canonical semantics.
+
 The unified CLI exposes:
 
 ```text
-viewwitness capture-exact [address] [--agent|--yaml] [--derive]
+viewwitness inspect-exact <file> [--agent|--yaml] [--object=ID [--binding=ID]]
+viewwitness capture-exact [address] [--agent|--yaml] [--derive] [--object=ID [--binding=ID]]
 viewwitness diff-exact <before> <after> [--agent|--yaml]
 ```
 
-A composable verification loop is:
+A full composable verification loop is:
 
 ```text
 viewwitness capture-exact --yaml > before.yaml
@@ -218,7 +233,14 @@ viewwitness capture-exact --yaml > after.yaml
 viewwitness diff-exact before.yaml after.yaml
 ```
 
-`diff-exact` compares saved envelopes only. It does not secretly recapture or mutate the application.
+A focused diagnosis can be performed on either the live capture or a saved full envelope:
+
+```text
+viewwitness capture-exact --object=showcase:painted-rectangle --binding=handle
+viewwitness inspect-exact before.yaml --object=showcase:painted-rectangle --binding=handle
+```
+
+`--binding` requires `--object`. Focus cannot be combined with `--yaml` or `--derive`. `diff-exact` still compares saved complete envelopes only; it does not secretly recapture or mutate the application.
 
 ## First executable agent-verification pressure case
 
@@ -261,12 +283,16 @@ showcase:painted-circle    -> ring, center
 
 A source-level regression test guards those four keys. Canvas background and text labels remain anonymous generic paint by design. Instrumentation grants identity only where the application explicitly supplies it.
 
+The same Canvas page now provides a guarded live defect: `Misplaced canvas handle`. Enabling it offsets only the rectangle's keyed `handle` by 60 logical pixels while its `outline` remains in place. That makes the running showcase a concrete target for focused capture, diagnosis, and later source-edit verification.
+
 ## Operator examples
 
 ```powershell
 cargo run --example showcase --features showcase
 cargo run --features egui --bin viewwitness -- capture-exact
 cargo run --features egui --bin viewwitness -- capture-exact --yaml
+cargo run --features egui --bin viewwitness -- capture-exact --object=showcase:painted-rectangle --binding=handle
+cargo run --features egui --bin viewwitness -- inspect-exact before.yaml --object=showcase:painted-rectangle --binding=handle
 cargo run --features egui --bin viewwitness -- diff-exact before.yaml after.yaml
 ```
 
@@ -292,13 +318,16 @@ final binding bounds + clip -> bbox visibility                      proven deriv
 ShapeIdx -> cross-frame identity                                    disproven as a general assumption
 named material binding field -> precise correlated diff             proven
 unrelated slot churn -> separable non-material diagnostic           proven
+full exact envelope -> focused authored object/binding projection   proven with explicit omissions/match counts
+live keyed handle defect -> exact diagnosis target                  proven in showcase and regression-guarded
 arbitrary AccessKit node -> paint binding                           not proven
 layer-local binding -> flattened FullOutput global order            not yet proven generally
+agent source edit -> recaptured proof                               not yet proven
 ```
 
 ## Agent boundary
 
-MCP is not the ViewWitness data model. `egui_inspection` is not the ViewWitness data model. AccessKit is not the ViewWitness data model. Generic paint observations are not the ViewWitness data model. Authored egui paint objects/bindings are not the canonical ViewWitness data model. Screenshots are not the ViewWitness data model.
+MCP is not the ViewWitness data model. `egui_inspection` is not the ViewWitness data model. AccessKit is not the ViewWitness data model. Generic paint observations are not the ViewWitness data model. Authored egui paint objects/bindings are not the canonical ViewWitness data model. Screenshots are not the ViewWitness data model. A focused authored projection is not a replacement `Witness` or replacement correlated envelope.
 
 They are evidence sources and integration surfaces around the canonical `Witness` representation.
 
@@ -306,9 +335,10 @@ They are evidence sources and integration surfaces around the canonical `Witness
 
 The next egui work should stay example-driven:
 
-1. turn the verification pressure case into an intentionally broken **live showcase** scenario and exercise inspect → source edit → recapture → verify against the running app;
-2. determine whether layer-local handles can be mapped safely to flattened `FullOutput` order without unstable/incomplete assumptions;
-3. pressure exact evidence across more multi-window/viewport cases;
-4. improve raster correlation/evidence before considering any stronger visual-occlusion claim;
-5. decide only after cross-backend pressure whether a generic “authored visual object” concept deserves promotion beyond the egui-specific envelope;
-6. continue refusing canonical occlusion until stronger evidence than rectangle overlap exists.
+1. use the existing `Misplaced canvas handle` live scenario for a real source-edit loop: focused inspect → diagnose source → edit → rebuild/restart → full recapture → `diff-exact` verification;
+2. consider focused diff output only if that real loop demonstrates a concrete token/noise problem with the full correlated diff;
+3. determine whether layer-local handles can be mapped safely to flattened `FullOutput` order without unstable/incomplete assumptions;
+4. pressure exact evidence across more multi-window/viewport cases;
+5. improve raster correlation/evidence before considering any stronger visual-occlusion claim;
+6. decide only after cross-backend pressure whether a generic “authored visual object” concept deserves promotion beyond the egui-specific envelope;
+7. continue refusing canonical occlusion until stronger evidence than rectangle overlap exists.
