@@ -47,7 +47,9 @@ fn canvas_showcase_keeps_a_live_clipped_center_pressure_state() {
 
     assert!(source.contains("Clip canvas center"));
     assert!(source.contains("clipped_canvas_center"));
-    assert!(source.contains("painter.with_clip_rect(egui::Rect::from_min_max(rect.min, rect.min))"));
+    assert!(
+        source.contains("painter.with_clip_rect(egui::Rect::from_min_max(rect.min, rect.min))")
+    );
     assert!(source.contains(
         "Pressure defect active: the keyed circle center is intentionally clipped to zero visible area."
     ));
