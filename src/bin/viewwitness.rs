@@ -20,6 +20,7 @@ fn run() -> io::Result<()> {
     match command.as_str() {
         "validate" => validate_command(args.collect()),
         "inspect" => inspect_command(args.collect()),
+        "inspect-exact" => inspect_exact_command(args.collect()),
         "derive" => derive_command(args.collect()),
         "diff" => diff_command(args.collect()),
         "diff-exact" => diff_exact_command(args.collect()),
@@ -54,6 +55,46 @@ fn inspect_command(args: Vec<String>) -> io::Result<()> {
     let witness = load_witness(path)?;
     validate_witness(&witness)?;
     print_witness(&witness, mode)
+}
+
+#[cfg(feature = "egui")]
+fn inspect_exact_command(args: Vec<String>) -> io::Result<()> {
+    let mut path = None;
+    let mut mode = OutputMode::Agent;
+    let mut focus = ExactFocus::default();
+
+    for arg in args {
+        match arg.as_str() {
+            "--agent" => mode = OutputMode::Agent,
+            "--yaml" => mode = OutputMode::Yaml,
+            _ if parse_exact_focus_option(&arg, &mut focus)? => {}
+            _ if arg.starts_with('-') => {
+                return Err(invalid(format!("unknown inspect-exact option {arg:?}")));
+            }
+            _ if path.replace(arg).is_some() => {
+                return Err(invalid("only one correlated capture path may be supplied"));
+            }
+            _ => {}
+        }
+    }
+
+    let Some(path) = path else {
+        return Err(invalid(
+            "usage: viewwitness inspect-exact <file> [--agent|--yaml] [--object=ID [--binding=ID]]",
+        ));
+    };
+    validate_exact_focus(&focus, mode, false)?;
+
+    let capture = load_correlated_capture(&path)?;
+    validate_witness(&capture.witness)?;
+    print_correlated_capture(&capture, mode, &focus)
+}
+
+#[cfg(not(feature = "egui"))]
+fn inspect_exact_command(_args: Vec<String>) -> io::Result<()> {
+    Err(invalid(
+        "exact correlated inspection requires the `egui` feature; rebuild with `--features egui`",
+    ))
 }
 
 fn derive_command(args: Vec<String>) -> io::Result<()> {
@@ -184,19 +225,19 @@ fn capture_command(_args: Vec<String>) -> io::Result<()> {
 
 #[cfg(feature = "egui")]
 fn capture_exact_command(args: Vec<String>) -> io::Result<()> {
-    use viewwitness::{
-        DEFAULT_EGUI_CAPTURE_ADDR, EguiCaptureObserver, correlated_capture_to_agent_text,
-    };
+    use viewwitness::{DEFAULT_EGUI_CAPTURE_ADDR, EguiCaptureObserver};
 
     let mut addr = None;
     let mut mode = OutputMode::Agent;
     let mut derive = false;
+    let mut focus = ExactFocus::default();
 
     for arg in args {
         match arg.as_str() {
             "--agent" => mode = OutputMode::Agent,
             "--yaml" => mode = OutputMode::Yaml,
             "--derive" => derive = true,
+            _ if parse_exact_focus_option(&arg, &mut focus)? => {}
             _ if arg.starts_with('-') => {
                 return Err(invalid(format!("unknown capture-exact option {arg:?}")));
             }
@@ -205,6 +246,8 @@ fn capture_exact_command(args: Vec<String>) -> io::Result<()> {
         }
     }
 
+    validate_exact_focus(&focus, mode, derive)?;
+
     let addr = addr.unwrap_or_else(|| DEFAULT_EGUI_CAPTURE_ADDR.to_owned());
     let mut observer = EguiCaptureObserver::connect(&addr)?;
     let mut capture = observer.capture()?;
@@ -212,19 +255,7 @@ fn capture_exact_command(args: Vec<String>) -> io::Result<()> {
     if derive {
         enrich_geometry(&mut capture.witness);
     }
-
-    match mode {
-        OutputMode::Agent => print!("{}", correlated_capture_to_agent_text(&capture)),
-        OutputMode::Yaml => {
-            let yaml = serde_yaml_ng::to_string(&capture).map_err(|error| {
-                io::Error::other(format!(
-                    "failed to serialize correlated capture YAML: {error}"
-                ))
-            })?;
-            print!("{yaml}");
-        }
-    }
-    Ok(())
+    print_correlated_capture(&capture, mode, &focus)
 }
 
 #[cfg(not(feature = "egui"))]
@@ -249,10 +280,11 @@ fn screenshot_command(args: Vec<String>) -> io::Result<()> {
             }
             addr = value.to_owned();
         } else if let Some(value) = arg.strip_prefix("--scale=") {
-            scale =
-                Some(value.parse::<f32>().map_err(|error| {
-                    invalid(format!("invalid --scale value {value:?}: {error}"))
-                })?);
+            scale = Some(
+                value
+                    .parse::<f32>()
+                    .map_err(|error| invalid(format!("invalid --scale value {value:?}: {error}")))?,
+            );
         } else if arg.starts_with('-') {
             return Err(invalid(format!("unknown screenshot option {arg:?}")));
         } else if output_path.replace(arg).is_some() {
@@ -292,6 +324,96 @@ fn screenshot_command(_args: Vec<String>) -> io::Result<()> {
 enum OutputMode {
     Agent,
     Yaml,
+}
+
+#[cfg(feature = "egui")]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct ExactFocus {
+    object_id: Option<String>,
+    binding_id: Option<String>,
+}
+
+#[cfg(feature = "egui")]
+impl ExactFocus {
+    fn is_active(&self) -> bool {
+        self.object_id.is_some()
+    }
+}
+
+#[cfg(feature = "egui")]
+fn parse_exact_focus_option(arg: &str, focus: &mut ExactFocus) -> io::Result<bool> {
+    if let Some(value) = arg.strip_prefix("--object=") {
+        if value.is_empty() {
+            return Err(invalid("--object must not be empty"));
+        }
+        if focus.object_id.replace(value.to_owned()).is_some() {
+            return Err(invalid("--object may only be supplied once"));
+        }
+        return Ok(true);
+    }
+    if let Some(value) = arg.strip_prefix("--binding=") {
+        if value.is_empty() {
+            return Err(invalid("--binding must not be empty"));
+        }
+        if focus.binding_id.replace(value.to_owned()).is_some() {
+            return Err(invalid("--binding may only be supplied once"));
+        }
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+#[cfg(feature = "egui")]
+fn validate_exact_focus(focus: &ExactFocus, mode: OutputMode, derive: bool) -> io::Result<()> {
+    if focus.binding_id.is_some() && focus.object_id.is_none() {
+        return Err(invalid("--binding requires --object"));
+    }
+    if focus.is_active() && mode == OutputMode::Yaml {
+        return Err(invalid(
+            "authored focus is an agent-text projection; --object/--binding cannot be combined with --yaml",
+        ));
+    }
+    if focus.is_active() && derive {
+        return Err(invalid(
+            "authored focus omits canonical semantics; --derive cannot be combined with --object/--binding",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "egui")]
+fn print_correlated_capture(
+    capture: &viewwitness::EguiCorrelatedCapture,
+    mode: OutputMode,
+    focus: &ExactFocus,
+) -> io::Result<()> {
+    use viewwitness::{
+        correlated_capture_authored_focus_to_agent_text, correlated_capture_to_agent_text,
+    };
+
+    match (mode, focus.object_id.as_deref()) {
+        (OutputMode::Agent, Some(object_id)) => print!(
+            "{}",
+            correlated_capture_authored_focus_to_agent_text(
+                capture,
+                object_id,
+                focus.binding_id.as_deref(),
+            )
+        ),
+        (OutputMode::Agent, None) => print!("{}", correlated_capture_to_agent_text(capture)),
+        (OutputMode::Yaml, None) => {
+            let yaml = serde_yaml_ng::to_string(capture).map_err(|error| {
+                io::Error::other(format!(
+                    "failed to serialize correlated capture YAML: {error}"
+                ))
+            })?;
+            print!("{yaml}");
+        }
+        (OutputMode::Yaml, Some(_)) => {
+            unreachable!("focused YAML is rejected by validate_exact_focus")
+        }
+    }
+    Ok(())
 }
 
 fn output_args(args: Vec<String>) -> io::Result<(Vec<String>, OutputMode)> {
@@ -379,16 +501,19 @@ fn print_usage() {
          usage:\n\
            viewwitness validate <file>\n\
            viewwitness inspect <file> [--agent|--yaml]\n\
+           viewwitness inspect-exact <file> [--agent|--yaml] [--object=ID [--binding=ID]]\n\
            viewwitness derive <file> [--agent|--yaml]\n\
            viewwitness diff <before> <after> [--agent|--yaml]\n\
            viewwitness diff-exact <before> <after> [--agent|--yaml]\n\
            viewwitness capture [address] [--agent|--yaml] [--derive] [--settle=N]\n\
-           viewwitness capture-exact [address] [--agent|--yaml] [--derive]\n\
+           viewwitness capture-exact [address] [--agent|--yaml] [--derive] [--object=ID [--binding=ID]]\n\
            viewwitness screenshot <output.png> [--address=HOST:PORT] [--scale=N]\n\
          \n\
-         Agent text is the default output for inspect, derive, diff, diff-exact, capture, and capture-exact.\n\
+         Agent text is the default output for inspect, inspect-exact, derive, diff, diff-exact, capture, and capture-exact.\n\
          `capture` reads semantic state through egui_inspection; `capture-exact` reads ViewWitness's\n\
-         same-pass semantic + viewport + paint evidence. `diff-exact` compares two saved full\n\
+         same-pass semantic + viewport + paint evidence. `inspect-exact` reads a saved full correlated\n\
+         envelope. `--object`/`--binding` produce an authored-focus agent projection and therefore cannot\n\
+         be combined with `--yaml`; `--binding` requires `--object`. `diff-exact` compares two saved full\n\
          correlated capture envelopes. Screenshots remain separate raster evidence."
     );
 }
