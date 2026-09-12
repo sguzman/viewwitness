@@ -3,8 +3,25 @@ set -euo pipefail
 
 BASELINE_DIR="${1:-target/m5-separated/baseline}"
 SANDBOX_ROOT="${2:-target/m5-stage-e/agent-task}"
+TASK_KIND="${3:-handle}"
 TRUSTED_ROOT="$(pwd -P)"
-TASK_SOURCE="$TRUSTED_ROOT/prompts/m5-handle-repair.md"
+
+case "$TASK_KIND" in
+  handle)
+    TASK_SOURCE="$TRUSTED_ROOT/prompts/m5-handle-repair.md"
+    FOCUS_A="handle-focus.txt"
+    FOCUS_B="outline-focus.txt"
+    ;;
+  clip)
+    TASK_SOURCE="$TRUSTED_ROOT/prompts/m5-clip-repair.md"
+    FOCUS_A="center-focus.txt"
+    FOCUS_B="ring-focus.txt"
+    ;;
+  *)
+    echo "unknown Stage E task kind: $TASK_KIND (expected handle or clip)" >&2
+    exit 1
+    ;;
+esac
 
 BASELINE_DIR="$(realpath "$BASELINE_DIR")"
 SANDBOX_ROOT="$(realpath -m "$SANDBOX_ROOT")"
@@ -13,8 +30,8 @@ EVIDENCE="$SANDBOX_ROOT/evidence"
 
 for required in \
   "$BASELINE_DIR/broken.yaml" \
-  "$BASELINE_DIR/handle-focus.txt" \
-  "$BASELINE_DIR/outline-focus.txt" \
+  "$BASELINE_DIR/$FOCUS_A" \
+  "$BASELINE_DIR/$FOCUS_B" \
   "$TASK_SOURCE"; do
   if [[ ! -s "$required" ]]; then
     echo "missing Stage E input: $required" >&2
@@ -37,11 +54,12 @@ git -C "$TRUSTED_ROOT" archive HEAD "${archive_paths[@]}" \
   | tar -x -C "$WORKSPACE"
 
 cp "$BASELINE_DIR/broken.yaml" "$EVIDENCE/broken.yaml"
-cp "$BASELINE_DIR/handle-focus.txt" "$EVIDENCE/handle-focus.txt"
-cp "$BASELINE_DIR/outline-focus.txt" "$EVIDENCE/outline-focus.txt"
+cp "$BASELINE_DIR/$FOCUS_A" "$EVIDENCE/$FOCUS_A"
+cp "$BASELINE_DIR/$FOCUS_B" "$EVIDENCE/$FOCUS_B"
 cp "$TASK_SOURCE" "$SANDBOX_ROOT/TASK.md"
 
 git -C "$TRUSTED_ROOT" rev-parse HEAD >"$SANDBOX_ROOT/trusted-head.txt"
+printf '%s\n' "$TASK_KIND" >"$SANDBOX_ROOT/task-kind.txt"
 
 (
   cd "$WORKSPACE"
@@ -74,7 +92,9 @@ for forbidden in \
   fi
 done
 
-if find "$WORKSPACE" -path '*/m5-reference-handle-patcher.sh' -o -path '*/m5-verify-handle-candidate.sh' | grep -q .; then
+if find "$WORKSPACE" -path '*/m5-reference-handle-patcher.sh' \
+    -o -path '*/m5-verify-handle-candidate.sh' \
+    -o -path '*/m5-verify-clip-candidate.sh' | grep -q .; then
   echo "sanitized workspace leaked M5 patcher/verifier tooling" >&2
   exit 1
 fi
@@ -96,4 +116,4 @@ trap cleanup_build_target EXIT
 cleanup_build_target
 trap - EXIT
 
-echo "M5 recipe-free coding-agent sandbox prepared: $SANDBOX_ROOT"
+echo "M5 recipe-free coding-agent sandbox prepared: kind=$TASK_KIND root=$SANDBOX_ROOT"
