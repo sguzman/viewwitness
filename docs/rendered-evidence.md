@@ -209,7 +209,7 @@ ShapeIdx-only change                        -> diagnostic, material=false
 kind/bounds/clip/layer/verification change -> first-class field-granular material change
 ```
 
-Object semantics and rendered binding state are now separate diff surfaces. A binding move is no longer emitted as one opaque object-level `field="bindings"` replacement. If the application supplied a unique sub-binding key, ViewWitness can say exactly which named part and field changed.
+Object semantics and rendered binding state are separate diff surfaces. A binding move is no longer emitted as one opaque object-level `field="bindings"` replacement. If the application supplied a unique sub-binding key, ViewWitness can say exactly which named part and field changed.
 
 Duplicate binding IDs are not silently deduplicated or repaired. `EguiAuthoredBindingIdAmbiguity` preserves the conflict explicitly.
 
@@ -261,6 +261,22 @@ Correlated diff text separates:
 
 This distinction is designed specifically so an agent does not mistake unrelated prefix paint for a logical object mutation.
 
+### Focused authored projection
+
+The full correlated capture is still the complete evidence envelope. A diagnosis task that already knows its authored target can request a smaller projection through `correlated_capture_authored_focus_to_agent_text`.
+
+The projection retains exact request/pass/viewport correlation metadata, then explicitly labels what it omitted:
+
+```text
+projection=authored_focus omitted=canonical_semantics,generic_paint
+```
+
+It also reports object and binding match counts. A duplicate authored object ID therefore yields multiple object records and an `object_match_count > 1`; a duplicate binding key likewise remains multiple binding records. Zero matches remain explicit. The projection never chooses an arbitrary “best” duplicate and never falls back to geometry.
+
+That refusal matters epistemically: a focused rendering is a **view over evidence**, not evidence erasure. The complete YAML envelope can still be preserved for later diffing or broader diagnosis.
+
+Focused YAML is intentionally unsupported because serializing the projection as though it were a complete exact envelope would make its omissions too easy to forget.
+
 ## Exact transport versioning
 
 The exact protocol is:
@@ -284,6 +300,29 @@ showcase:painted-circle    -> ring, center
 
 A source-level regression test guards those four keys. The canvas background and text labels remain ordinary anonymous paint, preserving the distinction between instrumented identity and generic renderer evidence.
 
+The showcase now also contains a guarded broken-state switch:
+
+```text
+Misplaced canvas handle
+```
+
+When active, it moves only `showcase:painted-rectangle`'s keyed `handle` by 60 logical pixels while leaving its keyed `outline` fixed. This makes the headless `body`/`handle` verification experiment available as a real external diagnosis target.
+
+A live agent can therefore preserve a complete broken capture and separately inspect only the relevant part:
+
+```text
+capture-exact --yaml > broken.yaml
+inspect-exact broken.yaml --object=showcase:painted-rectangle --binding=handle
+```
+
+or focus a live exact capture directly:
+
+```text
+capture-exact --object=showcase:painted-rectangle --binding=handle
+```
+
+Turning the switch off demonstrates live state/action verification, but it is **not** evidence that an agent repaired source code. Source-edit proof requires changing the application source, rebuilding/restarting as needed, recapturing a complete envelope, and verifying the transition through `diff-exact`.
+
 ## What remains unknown
 
 The generic widget-to-paint problem remains open. ViewWitness must not invent AccessKit-node → paint-shape mapping from coincident geometry, labels, or same-frame occurrence.
@@ -292,7 +331,8 @@ Likewise, an authored binding proves a **layer-local** paint handle. ViewWitness
 
 The next useful pressure cases are therefore:
 
-- an intentionally broken live-showcase scenario exercised through inspect → source edit → recapture → verify;
+- perform the real source-edit loop against the existing live `Misplaced canvas handle` defect;
+- decide whether a focused diff projection is justified by measured agent noise in that loop;
 - safe layer-local-handle → flattened-renderer-order mapping, if one can be proven;
 - more multi-window/viewport exact-capture pressure;
 - stronger raster evidence before any canonical visual-occlusion claim.
@@ -309,6 +349,7 @@ For now:
 - `EguiCorrelatedCapture` proves same-pass origin without implying generic widget↔paint identity;
 - explicitly instrumented custom paint can carry authored object identity plus optional authored binding identity and observed end-of-pass renderer bindings;
 - authored binding diffs may be field-granular when continuity evidence supports that claim;
+- focused authored output is a labeled projection over a complete exact capture, not a replacement evidence model;
 - duplicate object or binding IDs remain explicit ambiguity rather than heuristic matches;
 - screenshots remain supporting raster evidence unless their transport supplies trustworthy same-frame correlation;
 - generic widget↔paint association remains unknown unless a source explicitly supplies it.
