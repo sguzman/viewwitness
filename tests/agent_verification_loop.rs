@@ -39,7 +39,10 @@ fn mispositioned_keyed_handle_can_be_fixed_and_verified_without_body_noise() {
 
     let handle_change = &diff.authored.bindings_changed[0];
     assert_eq!(handle_change.object_id, "agent-loop:node");
-    assert_eq!(handle_change.authored_binding_id.as_deref(), Some("handle"));
+    assert_eq!(
+        handle_change.authored_binding_id.as_deref(),
+        Some("handle")
+    );
     assert_eq!(handle_change.unkeyed_ordinal, None);
     assert_eq!(
         handle_change
@@ -61,9 +64,10 @@ fn mispositioned_keyed_handle_can_be_fixed_and_verified_without_body_noise() {
     assert!(diff_text.contains(
         "authored-binding-change object_id=\"agent-loop:node\" authored_binding_id=\"handle\" field=\"bounds\""
     ));
-    assert!(diff_text.contains(
-        "authored-handle-churn id=\"agent-loop:node\" authored_binding_id=\"body\""
-    ));
+    assert!(
+        diff_text
+            .contains("authored-handle-churn id=\"agent-loop:node\" authored_binding_id=\"body\"")
+    );
     assert!(!diff_text.contains(
         "authored-binding-change object_id=\"agent-loop:node\" authored_binding_id=\"body\""
     ));
@@ -83,15 +87,13 @@ fn capture_scene(
         .request_capture()
         .expect("request agent verification capture");
 
-    let body_bounds =
-        egui::Rect::from_min_size(egui::pos2(40.0, 30.0), egui::vec2(60.0, 40.0));
+    let body_bounds = egui::Rect::from_min_size(egui::pos2(40.0, 30.0), egui::vec2(60.0, 40.0));
     let handle_center = if broken_handle {
         egui::pos2(150.0, 50.0)
     } else {
         egui::pos2(100.0, 50.0)
     };
-    let prefix_bounds =
-        egui::Rect::from_min_size(egui::pos2(5.0, 5.0), egui::vec2(10.0, 10.0));
+    let prefix_bounds = egui::Rect::from_min_size(egui::pos2(5.0, 5.0), egui::vec2(10.0, 10.0));
 
     let output = ctx.run_ui(test_input(), |ui| {
         let painter = ui.painter().clone();
