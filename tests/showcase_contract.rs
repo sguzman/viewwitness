@@ -36,3 +36,14 @@ fn canvas_showcase_keeps_a_live_misplaced_handle_pressure_state() {
         "Pressure defect active: the keyed rectangle handle is intentionally displaced 60 px to the right."
     ));
 }
+
+#[test]
+fn misplaced_handle_pressure_state_is_deterministically_launchable() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/showcase.rs");
+    let source = fs::read_to_string(path).expect("read showcase source");
+
+    assert!(source.contains("VIEWWITNESS_SHOWCASE_SCENARIO"));
+    assert!(source.contains("Some(\"misplaced-handle\")"));
+    assert!(source.contains("(ShowcasePage::Canvas, true)"));
+    assert!(source.contains("ViewWitness showcase startup scenario: misplaced-handle"));
+}
