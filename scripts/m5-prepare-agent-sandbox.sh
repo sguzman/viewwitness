@@ -28,7 +28,12 @@ mkdir -p "$WORKSPACE" "$EVIDENCE"
 # Build the agent workspace from committed HEAD, never from the caller's mutable
 # working tree. Historical tests/docs/scripts are intentionally absent because
 # they contain prior acceptance answers and repair recipes.
-git -C "$TRUSTED_ROOT" archive HEAD Cargo.toml Cargo.lock src examples \
+archive_paths=(Cargo.toml src examples)
+if git -C "$TRUSTED_ROOT" cat-file -e HEAD:Cargo.lock 2>/dev/null; then
+  archive_paths+=(Cargo.lock)
+fi
+
+git -C "$TRUSTED_ROOT" archive HEAD "${archive_paths[@]}" \
   | tar -x -C "$WORKSPACE"
 
 cp "$BASELINE_DIR/broken.yaml" "$EVIDENCE/broken.yaml"
@@ -43,7 +48,10 @@ git -C "$TRUSTED_ROOT" rev-parse HEAD >"$SANDBOX_ROOT/trusted-head.txt"
   git init -q
   git config user.name "ViewWitness Stage E"
   git config user.email "stage-e@viewwitness.invalid"
-  git add Cargo.toml Cargo.lock src examples
+  git add Cargo.toml src examples
+  if [[ -f Cargo.lock ]]; then
+    git add Cargo.lock
+  fi
   git commit -q -m "Stage E broken application baseline"
 )
 
