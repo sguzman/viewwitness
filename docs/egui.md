@@ -66,8 +66,6 @@ final kind / bounds / clip    observed end-of-pass slot state
 
 `EguiPaintAnnotator::paint_object(...)` is the explicit object-grouping operation. Its callback receives an `EguiPaintObjectScope`.
 
-The scope supports two forms:
-
 ```text
 add_shape / bind_shape                 unkeyed binding
 add_shape_with_id / bind_shape_with_id keyed binding
@@ -168,7 +166,8 @@ This establishes the matching basis used by `EguiCorrelatedDiff`.
 Authored object matching:
 
 - unique object ID on both sides → automatic object continuity;
-- duplicate object ID on either side → `EguiAuthoredIdAmbiguity`, matching refused.
+- duplicate object ID on either side → `EguiAuthoredIdAmbiguity`, matching refused;
+- object-level changes describe object semantics only, not the full binding vector.
 
 Binding matching inside a uniquely matched object:
 
@@ -177,21 +176,30 @@ Binding matching inside a uniquely matched object:
 - no authored binding ID → match conservatively by relative unkeyed ordinal;
 - keyed and unkeyed bindings may coexist.
 
-Material binding state excludes `shape_index`. It includes observed provenance/layer/verification/kind/bounds/clip. Therefore pure slot churn becomes `EguiAuthoredExecutionHandleChange` with `material=false`, while actual rendered-state changes remain material.
+Material binding state excludes `shape_index`. It includes evidence/layer/verification/kind/bounds/clip. Binding additions and removals are first-class. Material changes are also first-class and field-granular through `EguiAuthoredBindingChange`, so a move can be represented as exactly `handle.bounds` rather than one opaque object-level `bindings` replacement.
 
-If a keyed binding's kind/bounds/clip/etc. changes, it is a material `bindings` change even when its execution handle also churns. ViewWitness does not double-report that slot movement as a separate material event.
+Pure slot churn becomes `EguiAuthoredExecutionHandleChange` with `material=false`. If a binding has a material field change and its execution slot also churns, ViewWitness reports the material change and does not double-count the slot movement for that binding.
 
 ## Agent projection and CLI
 
-`correlated_capture_to_agent_text` emits semantic witness lines, authored-object lines, authored-binding lines, and generic paint lines separately. When a binding has an authored key, the binding line includes `authored_binding_id=...`; unkeyed bindings omit the field.
+`correlated_capture_to_agent_text` emits semantic witness lines, authored-object lines, authored-binding lines, and generic paint lines separately. When a binding has an authored key, the binding line includes `authored_binding_id=...`; unkeyed bindings omit it.
 
-`correlated_diff_to_agent_text` explicitly distinguishes:
+`correlated_diff_to_agent_text` distinguishes:
 
 ```text
-authored-change                  material authored state changed
+authored-change                  object-level authored semantics changed
++authored-binding                rendered sub-part added
+-authored-binding                rendered sub-part removed
+authored-binding-change          named/ordinal binding field changed
 authored-ambiguity               object continuity cannot be trusted
 authored-binding-ambiguity       sub-binding continuity cannot be trusted
 authored-handle-churn            exact-pass renderer slot changed, material=false
+```
+
+For example, a keyed handle movement is projected directly as:
+
+```text
+authored-binding-change object_id="agent-loop:node" authored_binding_id="handle" field="bounds" ...
 ```
 
 The unified CLI exposes:
@@ -212,6 +220,28 @@ viewwitness diff-exact before.yaml after.yaml
 
 `diff-exact` compares saved envelopes only. It does not secretly recapture or mutate the application.
 
+## First executable agent-verification pressure case
+
+The first M5 real-egui probe creates one authored `diagram_node` with two keyed sub-parts:
+
+```text
+body
+handle
+```
+
+The broken capture places `handle` far away from `body`. The fixed capture moves the same keyed handle onto the body edge **and** inserts unrelated anonymous paint earlier in the same layer to force renderer-slot churn.
+
+The accepted diff is:
+
+```text
+material:     handle.bounds changed
+non-material: body ShapeIdx changed
+not reported: body material change
+not reported: object-level field="bindings"
+```
+
+This is the first executable proof that ViewWitness can distinguish the application change an agent cares about from renderer bookkeeping churn in the same before/after pair. It does not yet prove autonomous source modification; it proves the capture/diff/verification language needed for that step.
+
 ## Showcase as a live integration target
 
 The native eframe showcase is a real ViewWitness pressure target. At startup it installs the cheap paint reporter and exact frame probe while blocking server loops run on named worker threads.
@@ -222,7 +252,14 @@ The native eframe showcase is a real ViewWitness pressure target. At startup it 
 127.0.0.1:5721  ViewWitness exact correlated capture request/response
 ```
 
-The Canvas page contains two explicit logical authored objects and four concrete paint bindings. Canvas background and text labels remain anonymous generic paint by design. Instrumentation grants identity only where the application explicitly supplies it.
+The Canvas page contains two explicit logical authored objects and four **keyed** concrete paint bindings:
+
+```text
+showcase:painted-rectangle -> outline, handle
+showcase:painted-circle    -> ring, center
+```
+
+A source-level regression test guards those four keys. Canvas background and text labels remain anonymous generic paint by design. Instrumentation grants identity only where the application explicitly supplies it.
 
 ## Operator examples
 
@@ -253,6 +290,8 @@ reset valid handle -> verified final Noop                           proven
 missing/unresolvable handle -> unverified binding                   proven
 final binding bounds + clip -> bbox visibility                      proven derived evidence
 ShapeIdx -> cross-frame identity                                    disproven as a general assumption
+named material binding field -> precise correlated diff             proven
+unrelated slot churn -> separable non-material diagnostic           proven
 arbitrary AccessKit node -> paint binding                           not proven
 layer-local binding -> flattened FullOutput global order            not yet proven generally
 ```
@@ -267,10 +306,9 @@ They are evidence sources and integration surfaces around the canonical `Witness
 
 The next egui work should stay example-driven:
 
-1. make the live showcase exercise authored binding IDs directly, not only the test harness;
-2. run a real agent debugging loop against the showcase: inspect → identify defect → modify → recapture → verify;
-3. determine whether layer-local handles can be mapped safely to flattened `FullOutput` order without unstable/incomplete assumptions;
-4. pressure exact evidence across more multi-window/viewport cases;
-5. improve raster correlation/evidence before considering any stronger visual-occlusion claim;
-6. decide only after cross-backend pressure whether a generic “authored visual object” concept deserves promotion beyond the egui-specific envelope;
-7. continue refusing canonical occlusion until stronger evidence than rectangle overlap exists.
+1. turn the verification pressure case into an intentionally broken **live showcase** scenario and exercise inspect → source edit → recapture → verify against the running app;
+2. determine whether layer-local handles can be mapped safely to flattened `FullOutput` order without unstable/incomplete assumptions;
+3. pressure exact evidence across more multi-window/viewport cases;
+4. improve raster correlation/evidence before considering any stronger visual-occlusion claim;
+5. decide only after cross-backend pressure whether a generic “authored visual object” concept deserves promotion beyond the egui-specific envelope;
+6. continue refusing canonical occlusion until stronger evidence than rectangle overlap exists.
