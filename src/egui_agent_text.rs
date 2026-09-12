@@ -3,8 +3,8 @@ use std::fmt::Write as _;
 use serde::Serialize;
 
 use crate::{
-    EguiAuthoredPaintObject, EguiCorrelatedCapture, EguiCorrelatedDiff, Rect, diff_to_agent_text,
-    to_agent_text,
+    EguiAuthoredBindingChange, EguiAuthoredBindingDelta, EguiAuthoredPaintObject,
+    EguiCorrelatedCapture, EguiCorrelatedDiff, Rect, diff_to_agent_text, to_agent_text,
 };
 
 /// Project an exact correlated egui capture into deterministic agent-oriented
@@ -158,9 +158,9 @@ pub fn correlated_capture_to_agent_text(capture: &EguiCorrelatedCapture) -> Stri
 /// Deterministic agent projection for a correlated egui diff.
 ///
 /// Generic anonymous paint is intentionally absent because the correlated diff
-/// does not claim durable identity for those submissions. Layer-local ShapeIdx
-/// churn is emitted separately and labeled non-material. Authored binding IDs
-/// are included only when the application supplied them.
+/// does not claim durable identity for those submissions. Material authored
+/// binding changes are projected at binding/field granularity. Layer-local
+/// ShapeIdx churn is emitted separately and labeled non-material.
 #[must_use]
 pub fn correlated_diff_to_agent_text(diff: &EguiCorrelatedDiff) -> String {
     let mut output = String::new();
@@ -194,6 +194,15 @@ pub fn correlated_diff_to_agent_text(diff: &EguiCorrelatedDiff) -> String {
             )
             .expect("writing to String cannot fail");
         }
+    }
+    for delta in &diff.authored.bindings_added {
+        write_binding_delta(&mut output, "+authored-binding", delta);
+    }
+    for delta in &diff.authored.bindings_removed {
+        write_binding_delta(&mut output, "-authored-binding", delta);
+    }
+    for change in &diff.authored.bindings_changed {
+        write_binding_change(&mut output, change);
     }
     for ambiguity in &diff.authored.ambiguous_ids {
         writeln!(
@@ -250,6 +259,69 @@ fn write_authored_delta(output: &mut String, prefix: &str, object: &EguiAuthored
         write!(output, " name={}", json(name)).expect("writing to String cannot fail");
     }
     output.push('\n');
+}
+
+fn write_binding_delta(output: &mut String, prefix: &str, delta: &EguiAuthoredBindingDelta) {
+    let binding = &delta.binding;
+    write!(
+        output,
+        "{prefix} object_id={} binding_ordinal={}",
+        json(&delta.object_id),
+        delta.binding_ordinal,
+    )
+    .expect("writing to String cannot fail");
+    if let Some(binding_id) = &binding.authored_binding_id {
+        write!(output, " authored_binding_id={}", json(binding_id))
+            .expect("writing to String cannot fail");
+    }
+    write!(
+        output,
+        " binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
+        json(&binding.binding_evidence),
+        json(&binding.layer_order),
+        binding.layer_id,
+        binding.shape_index,
+        binding.verified_at_end_pass,
+    )
+    .expect("writing to String cannot fail");
+    if let Some(kind) = binding.kind {
+        write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");
+    }
+    if let Some(bounds) = binding.bounds {
+        write!(output, " bounds={}", rect(bounds)).expect("writing to String cannot fail");
+    }
+    match binding.clip_rect {
+        Some(clip) => write!(output, " clip={}", rect(clip)),
+        None => write!(output, " clip=unbounded"),
+    }
+    .expect("writing to String cannot fail");
+    output.push('\n');
+}
+
+fn write_binding_change(output: &mut String, change: &EguiAuthoredBindingChange) {
+    for (field, value) in &change.fields {
+        write!(
+            output,
+            "authored-binding-change object_id={}",
+            json(&change.object_id),
+        )
+        .expect("writing to String cannot fail");
+        if let Some(binding_id) = &change.authored_binding_id {
+            write!(output, " authored_binding_id={}", json(binding_id))
+                .expect("writing to String cannot fail");
+        }
+        if let Some(ordinal) = change.unkeyed_ordinal {
+            write!(output, " unkeyed_ordinal={ordinal}").expect("writing to String cannot fail");
+        }
+        writeln!(
+            output,
+            " field={} before={} after={}",
+            json(field),
+            json(&value.before),
+            json(&value.after),
+        )
+        .expect("writing to String cannot fail");
+    }
 }
 
 fn rect(rect: Rect) -> String {
