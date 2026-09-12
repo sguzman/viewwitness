@@ -9,11 +9,8 @@ use viewwitness::{
 #[test]
 fn authored_focus_selects_one_binding_and_labels_omissions() {
     let capture = sample_capture();
-    let text = correlated_capture_authored_focus_to_agent_text(
-        &capture,
-        "canvas:node",
-        Some("handle"),
-    );
+    let text =
+        correlated_capture_authored_focus_to_agent_text(&capture, "canvas:node", Some("handle"));
 
     assert!(text.starts_with(
         "egui-correlated-focus request=7 viewport_id=2 pass=9 viewport_rect=[0,0,100,50] object_id=\"canvas:node\" binding_id=\"handle\" object_match_count=1 binding_match_count=1 correlation=same_full_output projection=authored_focus omitted=canonical_semantics,generic_paint\n"
@@ -44,28 +41,27 @@ fn authored_focus_preserves_duplicate_object_matches() {
 #[test]
 fn authored_focus_preserves_duplicate_binding_matches() {
     let mut capture = sample_capture();
-    capture.authored_objects[0].bindings.push(EguiAuthoredPaintBinding {
-        authored_binding_id: Some("handle".into()),
-        binding_evidence: "observed".into(),
-        layer_order: EguiLayerOrder::Background,
-        layer_id: 42,
-        shape_index: 5,
-        verified_at_end_pass: true,
-        kind: Some(EguiPaintKind::Circle),
-        bounds: Some(Rect {
-            x: 50.0,
-            y: 20.0,
-            width: 10.0,
-            height: 10.0,
-        }),
-        clip_rect: None,
-    });
+    capture.authored_objects[0]
+        .bindings
+        .push(EguiAuthoredPaintBinding {
+            authored_binding_id: Some("handle".into()),
+            binding_evidence: "observed".into(),
+            layer_order: EguiLayerOrder::Background,
+            layer_id: 42,
+            shape_index: 5,
+            verified_at_end_pass: true,
+            kind: Some(EguiPaintKind::Circle),
+            bounds: Some(Rect {
+                x: 50.0,
+                y: 20.0,
+                width: 10.0,
+                height: 10.0,
+            }),
+            clip_rect: None,
+        });
 
-    let text = correlated_capture_authored_focus_to_agent_text(
-        &capture,
-        "canvas:node",
-        Some("handle"),
-    );
+    let text =
+        correlated_capture_authored_focus_to_agent_text(&capture, "canvas:node", Some("handle"));
     assert!(text.contains("object_match_count=1 binding_match_count=2"));
     assert_eq!(text.matches("authored_binding_id=\"handle\"").count(), 2);
 }
