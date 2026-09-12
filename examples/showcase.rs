@@ -19,7 +19,20 @@ fn main() -> eframe::Result {
     let canvas_annotator = Arc::clone(&annotator_slot);
     let install_annotator = Arc::clone(&annotator_slot);
 
-    let mut page = ShowcasePage::Controls;
+    let startup_scenario = std::env::var("VIEWWITNESS_SHOWCASE_SCENARIO").ok();
+    let (mut page, mut misplaced_canvas_handle) = match startup_scenario.as_deref() {
+        Some("misplaced-handle") => {
+            eprintln!("ViewWitness showcase startup scenario: misplaced-handle");
+            (ShowcasePage::Canvas, true)
+        }
+        Some(other) => {
+            eprintln!(
+                "ViewWitness showcase ignoring unknown VIEWWITNESS_SHOWCASE_SCENARIO={other:?}"
+            );
+            (ShowcasePage::Controls, false)
+        }
+        None => (ShowcasePage::Controls, false),
+    };
     let mut name = String::from("Cube");
     let mut enabled = true;
     let mut autosave = true;
@@ -32,7 +45,6 @@ fn main() -> eframe::Result {
     let mut pathological_overlap = false;
     let mut long_labels = false;
     let mut busy = false;
-    let mut misplaced_canvas_handle = false;
 
     let ui_fun = move |ui: &mut egui::Ui, _frame: &mut eframe::Frame| {
         egui::Panel::top("showcase_top").show(ui, |ui| {
