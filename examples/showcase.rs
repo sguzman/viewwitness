@@ -20,19 +20,24 @@ fn main() -> eframe::Result {
     let install_annotator = Arc::clone(&annotator_slot);
 
     let startup_scenario = std::env::var("VIEWWITNESS_SHOWCASE_SCENARIO").ok();
-    let (mut page, mut misplaced_canvas_handle) = match startup_scenario.as_deref() {
-        Some("misplaced-handle") => {
-            eprintln!("ViewWitness showcase startup scenario: misplaced-handle");
-            (ShowcasePage::Canvas, true)
-        }
-        Some(other) => {
-            eprintln!(
-                "ViewWitness showcase ignoring unknown VIEWWITNESS_SHOWCASE_SCENARIO={other:?}"
-            );
-            (ShowcasePage::Controls, false)
-        }
-        None => (ShowcasePage::Controls, false),
-    };
+    let (mut page, mut misplaced_canvas_handle, mut clipped_canvas_center) =
+        match startup_scenario.as_deref() {
+            Some("misplaced-handle") => {
+                eprintln!("ViewWitness showcase startup scenario: misplaced-handle");
+                (ShowcasePage::Canvas, true, false)
+            }
+            Some("clipped-center") => {
+                eprintln!("ViewWitness showcase startup scenario: clipped-center");
+                (ShowcasePage::Canvas, false, true)
+            }
+            Some(other) => {
+                eprintln!(
+                    "ViewWitness showcase ignoring unknown VIEWWITNESS_SHOWCASE_SCENARIO={other:?}"
+                );
+                (ShowcasePage::Controls, false, false)
+            }
+            None => (ShowcasePage::Controls, false, false),
+        };
     let mut name = String::from("Cube");
     let mut enabled = true;
     let mut autosave = true;
@@ -74,6 +79,7 @@ fn main() -> eframe::Result {
                 ui.checkbox(&mut long_labels, "Long labels");
                 ui.checkbox(&mut busy, "Busy / disabled state");
                 ui.checkbox(&mut misplaced_canvas_handle, "Misplaced canvas handle");
+                ui.checkbox(&mut clipped_canvas_center, "Clip canvas center");
 
                 ui.separator();
                 ui.small("ViewWitness paint and exact-capture services run on worker threads. Set EGUI_INSPECTION=1 to additionally expose eframe's upstream local inspection endpoint.");
@@ -93,9 +99,12 @@ fn main() -> eframe::Result {
             ),
             ShowcasePage::Table => table_page(ui, &mut selected_row, long_labels),
             ShowcasePage::Scrolling => scrolling_page(ui, long_labels),
-            ShowcasePage::Canvas => {
-                canvas_page(ui, canvas_annotator.get(), misplaced_canvas_handle)
-            }
+            ShowcasePage::Canvas => canvas_page(
+                ui,
+                canvas_annotator.get(),
+                misplaced_canvas_handle,
+                clipped_canvas_center,
+            ),
         });
 
         if show_inspector {
@@ -368,6 +377,7 @@ fn canvas_page(
     ui: &mut egui::Ui,
     annotator: Option<&EguiPaintAnnotator>,
     misplaced_canvas_handle: bool,
+    clipped_canvas_center: bool,
 ) {
     use egui::epaint::{CircleShape, RectShape};
 
@@ -394,6 +404,11 @@ fn canvas_page(
     };
     let rectangle_handle =
         egui::Rect::from_center_size(rectangle_handle_center, egui::vec2(10.0, 10.0));
+    let center_painter = if clipped_canvas_center {
+        painter.with_clip_rect(egui::Rect::from_min_max(rect.min, rect.min))
+    } else {
+        painter.clone()
+    };
 
     if let Some(annotator) = annotator {
         annotator.paint_object(
@@ -439,7 +454,7 @@ fn canvas_page(
                     },
                 );
                 object.add_shape_with_id(
-                    &painter,
+                    &center_painter,
                     "center",
                     CircleShape {
                         center: second.center(),
@@ -468,7 +483,7 @@ fn canvas_page(
             fill: egui::Color32::TRANSPARENT,
             stroke: egui::Stroke::new(2.0, ui.visuals().widgets.hovered.fg_stroke.color),
         });
-        painter.add(CircleShape {
+        center_painter.add(CircleShape {
             center: second.center(),
             radius: 4.0,
             fill: ui.visuals().widgets.hovered.fg_stroke.color,
@@ -497,6 +512,9 @@ fn canvas_page(
 
     if misplaced_canvas_handle {
         ui.strong("Pressure defect active: the keyed rectangle handle is intentionally displaced 60 px to the right.");
+    }
+    if clipped_canvas_center {
+        ui.strong("Pressure defect active: the keyed circle center is intentionally clipped to zero visible area.");
     }
     ui.small("Expected exact capture: two authored logical objects with four verified, keyed paint bindings (`outline`, `handle`, `ring`, `center`). The canvas background and text labels remain generic renderer evidence, so ViewWitness still does not infer identity for unannotated submissions.");
 }
