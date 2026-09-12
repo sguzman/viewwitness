@@ -32,6 +32,7 @@ fn main() -> eframe::Result {
     let mut pathological_overlap = false;
     let mut long_labels = false;
     let mut busy = false;
+    let mut misplaced_canvas_handle = false;
 
     let ui_fun = move |ui: &mut egui::Ui, _frame: &mut eframe::Frame| {
         egui::Panel::top("showcase_top").show(ui, |ui| {
@@ -60,6 +61,7 @@ fn main() -> eframe::Result {
                 ui.checkbox(&mut show_tooltip, "Tooltip affordance");
                 ui.checkbox(&mut long_labels, "Long labels");
                 ui.checkbox(&mut busy, "Busy / disabled state");
+                ui.checkbox(&mut misplaced_canvas_handle, "Misplaced canvas handle");
 
                 ui.separator();
                 ui.small("ViewWitness paint and exact-capture services run on worker threads. Set EGUI_INSPECTION=1 to additionally expose eframe's upstream local inspection endpoint.");
@@ -79,7 +81,9 @@ fn main() -> eframe::Result {
             ),
             ShowcasePage::Table => table_page(ui, &mut selected_row, long_labels),
             ShowcasePage::Scrolling => scrolling_page(ui, long_labels),
-            ShowcasePage::Canvas => canvas_page(ui, canvas_annotator.get()),
+            ShowcasePage::Canvas => {
+                canvas_page(ui, canvas_annotator.get(), misplaced_canvas_handle)
+            }
         });
 
         if show_inspector {
@@ -348,7 +352,11 @@ fn scrolling_page(ui: &mut egui::Ui, long_labels: bool) {
         });
 }
 
-fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
+fn canvas_page(
+    ui: &mut egui::Ui,
+    annotator: Option<&EguiPaintAnnotator>,
+    misplaced_canvas_handle: bool,
+) {
     use egui::epaint::{CircleShape, RectShape};
 
     ui.heading("Custom-painted canvas — explicit multi-shape identity pressure test");
@@ -367,10 +375,13 @@ fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
         rect.min + egui::vec2(310.0, 170.0),
         egui::vec2(190.0, 110.0),
     );
-    let rectangle_handle = egui::Rect::from_center_size(
-        first.left_top() + egui::vec2(8.0, 8.0),
-        egui::vec2(10.0, 10.0),
-    );
+    let rectangle_handle_center = if misplaced_canvas_handle {
+        first.right_center() + egui::vec2(60.0, 0.0)
+    } else {
+        first.right_center()
+    };
+    let rectangle_handle =
+        egui::Rect::from_center_size(rectangle_handle_center, egui::vec2(10.0, 10.0));
 
     if let Some(annotator) = annotator {
         annotator.paint_object(
@@ -472,5 +483,8 @@ fn canvas_page(ui: &mut egui::Ui, annotator: Option<&EguiPaintAnnotator>) {
         ui.ctx().request_repaint();
     }
 
+    if misplaced_canvas_handle {
+        ui.strong("Pressure defect active: the keyed rectangle handle is intentionally displaced 60 px to the right.");
+    }
     ui.small("Expected exact capture: two authored logical objects with four verified, keyed paint bindings (`outline`, `handle`, `ring`, `center`). The canvas background and text labels remain generic renderer evidence, so ViewWitness still does not infer identity for unannotated submissions.");
 }
