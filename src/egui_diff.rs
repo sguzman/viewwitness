@@ -254,16 +254,11 @@ fn diff_authored_objects(
     bindings_added.sort_by(binding_delta_order);
     bindings_removed.sort_by(binding_delta_order);
     bindings_changed.sort_by(|a, b| {
-        (
-            &a.object_id,
-            &a.authored_binding_id,
-            a.unkeyed_ordinal,
-        )
-            .cmp(&(
-                &b.object_id,
-                &b.authored_binding_id,
-                b.unkeyed_ordinal,
-            ))
+        (&a.object_id, &a.authored_binding_id, a.unkeyed_ordinal).cmp(&(
+            &b.object_id,
+            &b.authored_binding_id,
+            b.unkeyed_ordinal,
+        ))
     });
     execution_handle_churn.sort_by(|a, b| {
         (&a.id, &a.authored_binding_id, a.binding_ordinal).cmp(&(
@@ -518,9 +513,7 @@ fn keyed_bindings(
         .collect()
 }
 
-fn unkeyed_bindings(
-    object: &EguiAuthoredPaintObject,
-) -> Vec<(usize, &EguiAuthoredPaintBinding)> {
+fn unkeyed_bindings(object: &EguiAuthoredPaintObject) -> Vec<(usize, &EguiAuthoredPaintBinding)> {
     object
         .bindings
         .iter()
