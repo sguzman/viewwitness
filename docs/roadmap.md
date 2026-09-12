@@ -96,7 +96,7 @@ showcase:painted-circle    -> ring, center
 
 Canvas background/text remain anonymous generic paint so instrumentation never pretends to semanticize the entire renderer.
 
-The showcase also contains a guarded `Misplaced canvas handle` pressure switch. When enabled, only the rectangle's keyed `handle` is displaced while its keyed `outline` remains fixed. This is now the canonical live broken-state target for M5.
+The showcase also contains a guarded `Misplaced canvas handle` pressure switch. When enabled, only the rectangle's keyed `handle` is displaced while its keyed `outline` remains fixed. This is the canonical live broken-state target for M5 and is deterministically launchable with `VIEWWITNESS_SHOWCASE_SCENARIO=misplaced-handle`.
 
 ## M3 — diff and continuity
 
@@ -128,7 +128,7 @@ A real egui experiment proved unrelated prefix paint can shift `ShapeIdx` while 
 Remaining diff pressure:
 
 - richer exact transitions from real application/showcase defects;
-- focused diff projection if the real agent loop demonstrates that full correlated diffs are unnecessarily noisy;
+- focused diff projection if future agent loops demonstrate that full correlated diffs are unnecessarily noisy;
 - avoid generic anonymous paint diffing until a trustworthy continuity source exists;
 - expose matching basis whenever future reconciliation becomes more sophisticated.
 
@@ -173,50 +173,72 @@ The focused header retains request/pass/viewport correlation metadata, reports o
 
 ## M5 — agent verification loop
 
-**First executable slice plus live broken target established.**
+**First live source-edit acceptance established.**
 
 The target workflow is:
 
 ```text
 capture
     -> diagnose concrete defect
-    -> modify application code or perform explicit action
+    -> modify application source
+    -> rebuild/restart
     -> recapture
     -> diff
     -> verify the intended state changed without hiding unrelated churn
 ```
 
-The first real-egui verification probe executes the evidence half of this loop end to end. It captures one authored `diagram_node` with keyed `body` and `handle` parts in a broken state, then captures a fixed state after also inserting unrelated prefix paint.
+Earlier real-egui probes established the evidence language in isolation: one authored `diagram_node` with keyed `body` and `handle` parts could be repaired while unrelated prefix paint changed renderer slots. The accepted diff isolated `handle.bounds` as material and renderer-handle churn as non-material.
 
-The accepted result is intentionally precise:
-
-```text
-material:     handle.bounds changed
-non-material: body ShapeIdx churned because unrelated paint shifted renderer slots
-false noise:  no body material change
-false blob:   no object-level field="bindings"
-```
-
-This forced a useful contract improvement: authored binding changes are first-class and field-granular, so an agent can see exactly which named rendered sub-part changed rather than re-diffing an opaque binding collection itself.
-
-The same defect shape now exists in the **running showcase**. On the Canvas page, `Misplaced canvas handle` displaces only `showcase:painted-rectangle`'s keyed `handle`. Focused exact inspection can isolate that object or binding without forcing an agent to consume the entire semantic tree and generic renderer list.
-
-What M5 has **not** yet proven is autonomous source modification. The next acceptance case is now concrete rather than hypothetical:
+That evidence model has now crossed the **live native source-edit boundary**. The dedicated `M5 Live Source Repair` workflow runs the real eframe showcase under Xvfb and executes this sequence in one isolated workspace:
 
 ```text
-run showcase
-    -> enable Misplaced canvas handle
-    -> capture full broken envelope
-    -> focus inspection on showcase:painted-rectangle / handle
-    -> diagnose source responsible for the displacement
-    -> edit source outside the GUI thread
-    -> rebuild/restart as needed
-    -> recapture full envelope
-    -> diff-exact broken vs fixed
-    -> verify the named handle changed as intended without unrelated false material changes
+launch checked-in broken showcase
+    -> exact live capture
+    -> focused inspect showcase:painted-rectangle / handle
+    -> edit examples/showcase.rs
+    -> rebuild native showcase
+    -> relaunch same deterministic scenario
+    -> exact live recapture
+    -> diff-exact broken.yaml fixed.yaml
+    -> machine-check the repair
 ```
 
-Turning the pressure switch off can prove live state/action verification, but it does **not** count as source-edit proof. The source-edit milestone remains open until the application code itself is changed and the recaptured evidence demonstrates the fix.
+The accepted source edit was:
+
+```diff
+-        first.right_center() + egui::vec2(60.0, 0.0)
++        first.right_center() + egui::vec2(0.0, 0.0)
+```
+
+Observed exact evidence on the accepted run:
+
+```text
+broken handle:  [513,215,10,10]
+fixed handle:   [453,215,10,10]
+outline before: [307,169,152,102]
+outline after:  [307,169,152,102]
+```
+
+`diff-exact` reported exactly the named rendered sub-part material change:
+
+```text
+authored-binding-change object_id="showcase:painted-rectangle" authored_binding_id="handle" field="bounds" before={"height":10.0,"width":10.0,"x":513.0,"y":215.0} after={"height":10.0,"width":10.0,"x":453.0,"y":215.0}
+```
+
+The harness rejects outline material movement, object/binding ambiguity, movement other than 60 logical pixels left, or any handle change outside its x position. All assertions passed.
+
+The checked-in showcase intentionally remains broken. The workflow repairs only its isolated checkout and restores the file during cleanup, preserving a deterministic defect for repeated experiments.
+
+Canonical acceptance details and artifact provenance live in `docs/acceptance/m5-live-source-repair.md`. The executable orchestration lives in `scripts/m5-source-repair-loop.sh` and `.github/workflows/m5-live-showcase.yml`.
+
+This **does not yet prove arbitrary autonomous GUI repair**. The repair target and transformation are deliberately constrained. The next M5 pressure is to remove scaffolding in stages:
+
+- give an agent the live focused evidence and repository without pre-encoding the exact replacement string in the harness;
+- require it to locate the responsible source from evidence plus code search;
+- let the agent choose and apply the patch through the normal coding workflow;
+- rerun the same external verification independently of the patching agent;
+- add a second defect class so success cannot collapse into memorizing one handle-offset recipe;
+- eventually test diagnosis where semantic, authored-paint, and raster evidence disagree or are incomplete.
 
 MCP remains a plausible integration surface later, but the canonical model must remain independent of MCP. Observation and control stay conceptually separate; ViewWitness must remain useful without mutation authority.
 
