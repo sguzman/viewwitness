@@ -1,0 +1,43 @@
+name: M5 Live Showcase
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/m5-live-showcase.yml"
+      - "scripts/m5-live-showcase.sh"
+      - "examples/showcase.rs"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+
+concurrency:
+  group: m5-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-showcase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install virtual X server
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+
+      - name: Build showcase and exact observer
+        run: |
+          cargo build --example showcase --features showcase
+          cargo build --features egui --bin viewwitness
+
+      - name: Capture broken native showcase
+        run: bash scripts/m5-live-showcase.sh
+
+      - name: Preserve live evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5-live-broken-evidence
+          path: target/m5-live-showcase/
+          if-no-files-found: error
