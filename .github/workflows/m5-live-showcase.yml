@@ -25,7 +25,7 @@ jobs:
       - name: Install virtual X server
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb libxkbcommon-x11-0
 
       - name: Build showcase and exact observer
         run: |
