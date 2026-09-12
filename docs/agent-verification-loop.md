@@ -1,8 +1,8 @@
 # Agent verification loop — live showcase
 
-This runbook is the current M5 acceptance target. It exists to pressure ViewWitness as evidence for an agent debugging a real egui application, not merely as a library test.
+This runbook is the current M5 operating procedure for pressuring ViewWitness as evidence for an agent debugging a real egui application, not merely as a library test.
 
-The canonical live defect is the Canvas object's misplaced keyed handle:
+The first accepted live defect is the Canvas object's misplaced keyed handle:
 
 ```text
 object:  showcase:painted-rectangle
@@ -11,6 +11,8 @@ defect:  handle displaced 60 logical pixels to the right
 ```
 
 The rectangle's keyed `outline` remains fixed. The Canvas background and labels remain anonymous generic paint.
+
+The first complete source-edit acceptance run is recorded in `docs/acceptance/m5-live-source-repair.md`.
 
 ## 1. Launch the known-broken target
 
@@ -59,24 +61,28 @@ Use the saved full envelope for durable before/after verification; use focus to 
 
 ## 4. Diagnose and edit source
 
-The agent should identify the application source responsible for the observed displacement and modify that source.
+The coding agent should identify the application source responsible for the observed defect and modify that source.
 
-This is deliberately outside ViewWitness's observation authority. ViewWitness does not grant itself code-edit or GUI-control authority merely because an agent can consume its evidence.
+This remains deliberately outside ViewWitness's observation authority. ViewWitness does not grant itself code-edit or GUI-control authority merely because an agent can consume its evidence.
 
 The edit must occur outside the render/UI thread. Rebuild/restart the application as required by the host workflow.
 
 Turning off the pressure checkbox is **not** source-edit proof. It demonstrates a state/action transition only.
 
-## 5. Launch the fixed target and recapture
+For the first accepted M5 run, the observed source defect was repaired in an isolated CI checkout as:
 
-After the source change, run the showcase normally unless the edited code has introduced a different explicit reproduction mechanism:
-
-```powershell
-Remove-Item Env:VIEWWITNESS_SHOWCASE_SCENARIO -ErrorAction SilentlyContinue
-cargo run --example showcase --features showcase
+```diff
+-        first.right_center() + egui::vec2(60.0, 0.0)
++        first.right_center() + egui::vec2(0.0, 0.0)
 ```
 
-Then preserve a second complete envelope:
+The checked-in source intentionally retains the broken expression so the acceptance case is reproducible.
+
+## 5. Rebuild the edited target and recapture
+
+The first accepted workflow rebuilds the real native showcase after editing the Rust source, then relaunches the same deterministic `misplaced-handle` scenario. This is stronger than switching runtime state because the repaired observation comes from a newly compiled program.
+
+For a manual experiment, rebuild/relaunch however the source-editing workflow normally does, then preserve a second complete envelope:
 
 ```powershell
 cargo run --features egui --bin viewwitness -- capture-exact --yaml > fixed.yaml
@@ -88,39 +94,78 @@ cargo run --features egui --bin viewwitness -- capture-exact --yaml > fixed.yaml
 cargo run --features egui --bin viewwitness -- diff-exact broken.yaml fixed.yaml
 ```
 
-The acceptance claim must be based on evidence, not on “looks fixed.” For the intended defect, the important material evidence should identify the named `handle` binding's geometry change. Unrelated `ShapeIdx` movement must remain diagnostic/non-material rather than masquerading as an application change.
+The acceptance claim must be based on evidence, not on “looks fixed.” For the first defect, `diff-exact` identified exactly the keyed `handle` binding's geometry change:
 
-A successful run should answer all of these:
+```text
+authored-binding-change object_id="showcase:painted-rectangle" authored_binding_id="handle" field="bounds" before={"height":10.0,"width":10.0,"x":513.0,"y":215.0} after={"height":10.0,"width":10.0,"x":453.0,"y":215.0}
+```
 
-- Was the same authored rectangle identifiable before and after?
-- Was the same keyed `handle` identifiable before and after?
-- Did the handle's material geometry change in the intended direction?
-- Did the rectangle `outline` avoid false material change?
+The paired outline stayed at `[307,169,152,102]`. The harness independently checked that the handle moved exactly 60 logical pixels left, changed only its x position, and remained uniquely identifiable.
+
+A successful source-repair run should answer all of these:
+
+- Was the same authored object identifiable before and after?
+- Was the same keyed rendered sub-part identifiable before and after?
+- Did its material state change in the intended direction?
+- Did unaffected sibling bindings avoid false material changes?
 - Was renderer-slot churn kept separate from material state?
-- Did the fixed capture still preserve exact same-pass provenance?
+- Did both captures preserve exact same-pass provenance?
+- Did the repaired capture come from rebuilt source rather than a runtime toggle?
+
+## Automated acceptance harness
+
+The canonical live source-repair experiment is executable:
+
+```text
+.github/workflows/m5-live-showcase.yml
+scripts/m5-source-repair-loop.sh
+```
+
+The script:
+
+```text
+starts Xvfb
+  -> launches checked-in broken native showcase
+  -> captures broken.yaml
+  -> records focused handle + outline evidence
+  -> edits examples/showcase.rs
+  -> records the source patch
+  -> rebuilds the native showcase
+  -> relaunches the same scenario
+  -> captures fixed.yaml
+  -> records focused handle + outline evidence
+  -> runs diff-exact
+  -> rejects ambiguity/collateral material change/wrong movement
+  -> restores checked-in source during cleanup
+```
+
+CI uploads the complete run evidence as `m5-live-source-repair-evidence`.
 
 ## Current proof boundary
 
-Already proven and CI-guarded:
+Proven and executable:
 
 ```text
-real egui exact capture                         yes
-stable authored object + keyed sub-part         yes
-field-granular handle.bounds diff               yes
-unrelated ShapeIdx churn separated              yes
-live misplaced-handle defect                    yes
-deterministic broken startup scenario           yes
-focused object/binding inspection               yes
-complete-envelope before/after diff             yes
+real native eframe exact capture                 yes
+stable authored object + keyed sub-part           yes
+focused live object/binding inspection            yes
+deterministic broken startup scenario             yes
+application source edited after broken capture    yes
+native application rebuilt from edited source     yes
+rebuilt application recaptured                    yes
+complete-envelope diff-exact                      yes
+field-granular handle.bounds repair proof         yes
+unaffected outline held materially stable         yes
+source patch + before/after evidence preserved     yes
 ```
 
-Not yet proven:
+Still not proven:
 
 ```text
-agent diagnoses live broken showcase from evidence
-agent edits application source
-rebuilt/restarted app is recaptured
-source fix is accepted from resulting diff
+arbitrary coding agent locates source without pre-encoded repair target
+agent chooses patch without harness knowing replacement string
+multiple qualitatively different defect classes
+arbitrary GUI repair from incomplete/ambiguous evidence
 ```
 
-That remaining sequence is the next M5 acceptance event. Do not mark it complete merely because the infrastructure exists.
+Those are now the next M5 pressure points. The first source-edit milestone itself is complete; future work should remove scaffolding rather than replaying the same offset recipe and calling it additional progress.
