@@ -39,10 +39,7 @@ fn mispositioned_keyed_handle_can_be_fixed_and_verified_without_body_noise() {
 
     let handle_change = &diff.authored.bindings_changed[0];
     assert_eq!(handle_change.object_id, "agent-loop:node");
-    assert_eq!(
-        handle_change.authored_binding_id.as_deref(),
-        Some("handle")
-    );
+    assert_eq!(handle_change.authored_binding_id.as_deref(), Some("handle"));
     assert_eq!(handle_change.unkeyed_ordinal, None);
     assert_eq!(
         handle_change
