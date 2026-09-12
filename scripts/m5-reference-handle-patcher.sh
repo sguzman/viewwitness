@@ -7,17 +7,18 @@ mkdir -p "$OUT_DIR"
 BROKEN_EXPR='first.right_center() + egui::vec2(60.0, 0.0)'
 FIXED_EXPR='first.right_center() + egui::vec2(0.0, 0.0)'
 
-mapfile -t matches < <(grep -RIlF --include='*.rs' "$BROKEN_EXPR" . \
-  --exclude-dir=.git --exclude-dir=target)
+# Search executable/application Rust surfaces, not tests/docs that may quote the defect
+# as specification text. The reference patcher still has to locate the concrete file.
+mapfile -t matches < <(grep -RIlF --include='*.rs' "$BROKEN_EXPR" src examples)
 
 if [[ "${#matches[@]}" -ne 1 ]]; then
-  printf 'reference patcher expected exactly one source file containing the repair target, found %d\n' \
+  printf 'reference patcher expected exactly one application source file containing the repair target, found %d\n' \
     "${#matches[@]}" >&2
   printf '%s\n' "${matches[@]:-}" >&2
   exit 1
 fi
 
-SOURCE_PATH="${matches[0]#./}"
+SOURCE_PATH="${matches[0]}"
 printf '%s\n' "$SOURCE_PATH" >"$OUT_DIR/located-source.txt"
 
 python3 - "$SOURCE_PATH" "$BROKEN_EXPR" "$FIXED_EXPR" <<'PY'
