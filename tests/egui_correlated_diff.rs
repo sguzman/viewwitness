@@ -22,6 +22,9 @@ fn shape_index_churn_is_diagnostic_not_material_change() {
     assert!(diff.authored.objects_added.is_empty());
     assert!(diff.authored.objects_removed.is_empty());
     assert!(diff.authored.objects_changed.is_empty());
+    assert!(diff.authored.bindings_added.is_empty());
+    assert!(diff.authored.bindings_removed.is_empty());
+    assert!(diff.authored.bindings_changed.is_empty());
     assert!(diff.authored.ambiguous_ids.is_empty());
     assert_eq!(diff.authored.execution_handle_churn.len(), 1);
 
@@ -63,6 +66,9 @@ fn duplicate_authored_ids_are_ambiguity_not_implicit_matching() {
     assert!(diff.authored.objects_added.is_empty());
     assert!(diff.authored.objects_removed.is_empty());
     assert!(diff.authored.objects_changed.is_empty());
+    assert!(diff.authored.bindings_added.is_empty());
+    assert!(diff.authored.bindings_removed.is_empty());
+    assert!(diff.authored.bindings_changed.is_empty());
     assert!(diff.authored.execution_handle_churn.is_empty());
     assert!(!diff.is_materially_empty());
 }
@@ -88,12 +94,15 @@ fn material_binding_change_is_reported_without_using_shape_index_as_identity() {
     let after = synthetic_capture(2, vec![changed]);
 
     let diff = diff_correlated_captures(&before, &after);
-    assert_eq!(diff.authored.objects_changed.len(), 1);
-    let change = &diff.authored.objects_changed[0];
-    assert_eq!(change.id, "canvas:node");
+    assert!(diff.authored.objects_changed.is_empty());
+    assert_eq!(diff.authored.bindings_changed.len(), 1);
+    let change = &diff.authored.bindings_changed[0];
+    assert_eq!(change.object_id, "canvas:node");
+    assert_eq!(change.authored_binding_id, None);
+    assert_eq!(change.unkeyed_ordinal, Some(0));
     assert_eq!(
         change.fields.keys().map(String::as_str).collect::<Vec<_>>(),
-        vec!["bindings"]
+        vec!["bounds", "kind"]
     );
     assert!(diff.authored.execution_handle_churn.is_empty());
     assert!(!diff.is_materially_empty());
