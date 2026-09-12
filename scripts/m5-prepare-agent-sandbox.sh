@@ -79,11 +79,21 @@ if find "$WORKSPACE" -path '*/m5-reference-handle-patcher.sh' -o -path '*/m5-ver
   exit 1
 fi
 
-# Ensure the packaged application is independently buildable before any coding
-# agent receives it.
+# Prove the packaged application is independently buildable without depositing
+# compilation intermediates inside the preserved agent/evidence artifact tree.
+SANDBOX_CARGO_TARGET="$(mktemp -d "${TMPDIR:-/tmp}/viewwitness-m5-sandbox-target.XXXXXX")"
+cleanup_build_target() {
+  rm -rf "$SANDBOX_CARGO_TARGET" >/dev/null 2>&1 || true
+}
+trap cleanup_build_target EXIT
+
 (
   cd "$WORKSPACE"
-  cargo check --example showcase --features showcase
+  CARGO_TARGET_DIR="$SANDBOX_CARGO_TARGET" \
+    cargo check --example showcase --features showcase
 )
+
+cleanup_build_target
+trap - EXIT
 
 echo "M5 recipe-free coding-agent sandbox prepared: $SANDBOX_ROOT"
