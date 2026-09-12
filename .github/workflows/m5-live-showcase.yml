@@ -11,6 +11,9 @@ on:
       - "scripts/m5-capture-handle-baseline.sh"
       - "scripts/m5-reference-handle-patcher.sh"
       - "scripts/m5-verify-handle-candidate.sh"
+      - "scripts/m5-verify-agent-patch.sh"
+      - "scripts/m5-prepare-agent-sandbox.sh"
+      - "prompts/m5-handle-repair.md"
       - "examples/showcase.rs"
       - "src/**"
       - "Cargo.toml"
@@ -53,6 +56,16 @@ jobs:
       - name: Verify candidate without repair recipe
         run: bash scripts/m5-verify-handle-candidate.sh target/m5-separated/baseline target/m5-separated/verifier
 
+      - name: Prepare recipe-free coding-agent sandbox
+        run: bash scripts/m5-prepare-agent-sandbox.sh target/m5-separated/baseline target/m5-stage-e/agent-task
+
+      - name: Exercise trusted clean-worktree candidate gate
+        run: |
+          bash scripts/m5-verify-agent-patch.sh \
+            target/m5-separated/baseline \
+            target/m5-separated/patcher/candidate.patch \
+            target/m5-stage-e/reference-control
+
       - name: Preserve repair evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -62,4 +75,5 @@ jobs:
             target/m5-source-repair/
             target/m5-clip-repair/
             target/m5-separated/
+            target/m5-stage-e/
           if-no-files-found: error
