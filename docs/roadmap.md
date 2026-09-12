@@ -173,7 +173,7 @@ The focused header retains request/pass/viewport correlation metadata, reports o
 
 ## M5 — agent verification loop
 
-**Stages A–D accepted. Stage-E agent arena validated. Real agent-produced repair pending.**
+**Stages A–D accepted. Stage-E agent arena dual-task validated. Real agent-produced repair pending.**
 
 The durable target loop is:
 
@@ -223,41 +223,56 @@ Canonical Stage-D provenance lives in `docs/acceptance/m5-separated-patcher-veri
 
 ### Stage E — recipe-free coding-agent boundary
 
-**Arena validated; Stage E itself remains open.**
+**Dual-task arena validated; Stage E itself remains open.**
 
-Stage E removes the repair recipe from the coding-agent side as well. The task in `prompts/m5-handle-repair.md` describes the broken rendered state and acceptance goal, not the expected source path or transformation.
+Stage E removes the repair recipe from the coding-agent side as well. There are now two recipe-free task surfaces:
 
-The agent-visible package is generated from committed broken `HEAD` and contains:
+```text
+handle
+  prompt: prompts/m5-handle-repair.md
+  focus:  handle + outline
+
+clip
+  prompt: prompts/m5-clip-repair.md
+  focus:  center + ring
+```
+
+Both tasks describe broken rendered state and acceptance goals rather than expected source paths or transformations.
+
+For either task, the agent-visible package is generated from committed broken `HEAD` and contains:
 
 ```text
 TASK.md
+task-kind.txt
 evidence/broken.yaml
-evidence/handle-focus.txt
-evidence/outline-focus.txt
+evidence/<task-specific focused projections>
 workspace/Cargo.toml
 workspace/src/**
 workspace/examples/**
 ```
 
-Historical tests, docs, scripts, prompts, CI, and verifier machinery are excluded so the coding agent cannot simply read the previous answer out of the repository's acceptance history.
+Historical tests, docs, scripts, prompts, CI, and verifier machinery are excluded so the coding agent cannot simply read previous answers out of the repository's acceptance history.
 
 A candidate patch then crosses a trusted boundary:
 
 ```text
-agent.patch
+agent.patch + explicit task kind
+    -> select trusted handle|clip verifier
     -> validate mutation surface
     -> fresh detached worktree from trusted HEAD
     -> apply patch only there
     -> build candidate showcase there
     -> trusted ViewWitness CLI observes candidate
-    -> trusted verifier decides acceptance
+    -> selected trusted verifier decides acceptance
 ```
 
 For the current experiment the candidate mutation surface is restricted to `examples/*.rs`, keeping ViewWitness implementation, tests, CI, task text, and verifier outside agent authority.
 
-This arena was validated on code head `3eda2d79c67e325152609db2ed10063de85775a8`: ordinary CI run `34723502505` passed format/default/all-features, and native M5 run `34723502520` passed the sanitized-workspace build plus trusted clean-worktree candidate gate. The Stage-D reference patch was used only as a transport/control input for that validation.
+The code-bearing dual-task integration is validated at `1a526beb26aa97e800fa32b481861d351410abde`. Native M5 run `34725470386` passed both mutation-free baselines, both sanitized-workspace builds, and both trusted clean-worktree control gates. The handle control was accepted from geometry evidence. The clip control was accepted from a `visible_fraction` transition from `0` to `1` with center bounds and sibling ring evidence stable.
 
-That distinction is load-bearing: **a reference patch passing the Stage-E gate is not Stage-E agent inference.**
+The post-integration test head `4cd6bbfc64733c9077c9b0652ec49607375ba559` passed ordinary formatting, default tests, and all-features CI in run `34725563814`.
+
+That distinction remains load-bearing: **known-good controls passing the Stage-E gate validate the arena, not Stage-E agent inference.**
 
 Canonical arena provenance lives in `docs/acceptance/m5-stage-e-arena.md`. The trust contract lives in `docs/agent-patch-contract.md`.
 
@@ -265,28 +280,28 @@ A native pressure run also showed why acceptance must remain epistemically scope
 
 ### Next M5 pressure
 
-The next experiment is deliberately simple to state and impossible to credit to another scripted replacement:
+The missing step is now singular: put an **actual coding agent** inside the already-validated arena.
 
 ```text
 real coding agent
-    receives sanitized Stage-E package
+    receives one sanitized Stage-E package
     -> reads ViewWitness evidence
     -> inspects ordinary source
     -> locates responsible code itself
     -> chooses and emits its own patch
-    -> trusted gate reconstructs and verifies candidate
+    -> trusted task-specific gate reconstructs and verifies candidate
 ```
 
 Only successful completion of that experiment promotes Stage E from `current` to `accepted`.
 
-After that:
+After that, pressure generality rather than adding more control scripts:
 
 ```text
-Stage F  multiple defects/tasks without recipe-specific prompting
+Stage F  same independent-agent protocol succeeds across multiple defect classes/tasks
 Stage G  incomplete, contradictory, or ambiguous evidence pressure
 ```
 
-Stage F should include more than one defect class per agent-facing task family so success cannot degrade into memorizing one source idiom. Stage G should deliberately pressure disagreement or incompleteness among semantic, authored-paint, geometry, and raster evidence and require uncertainty to remain visible rather than guessed away.
+Stage F should require successful independently chosen repairs for more than one task kind so success cannot degrade into memorizing one source idiom. Stage G should deliberately pressure disagreement or incompleteness among semantic, authored-paint, geometry, and raster evidence and require uncertainty to remain visible rather than guessed away.
 
 MCP remains a plausible integration surface later, but the canonical model and verification architecture must remain independent of MCP. Observation and control stay conceptually separate; ViewWitness must remain useful without mutation authority.
 
@@ -318,6 +333,6 @@ Architecture, ontology, format design, example design, review, and integration r
 
 Good bounded delegation surfaces include repetitive mappings, showcase gallery expansion after acceptance cases are fixed, CLI polish after behavior is established, and mechanical protocol/tooling work.
 
-A real Stage-E run is also an appropriate Codex delegation surface precisely because the trust boundary is now external to the coding agent: Codex may own the repair hypothesis, while ViewWitness retains independent observation and acceptance authority.
+A real Stage-E run is now the strongest Codex delegation surface precisely because the trust boundary is external to the coding agent: Codex may own the repair hypothesis, while ViewWitness retains independent observation and acceptance authority.
 
 The director should continue implementing small semantic slices directly when that helps establish the contract. Codex multiplies mechanical throughput; it does not inherit architectural authority.
