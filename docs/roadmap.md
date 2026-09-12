@@ -39,7 +39,7 @@ Intentional limits:
 - no fake clipping from bare semantic rectangles;
 - no all-pairs relation explosion by default.
 
-Renderer-facing egui bounds/clip evidence now forms a second, toolkit-specific geometry source. Bounding-box clip survival is deterministic derived evidence but remains outside canonical node geometry until semantic/widget linkage can justify promotion.
+Renderer-facing egui bounds/clip evidence forms a second, toolkit-specific geometry source. Bounding-box clip survival is deterministic derived evidence but remains outside canonical node geometry until semantic/widget linkage can justify promotion.
 
 Remaining geometry pressure:
 
@@ -87,30 +87,28 @@ Established exact same-pass slice:
 - protocol v2 external exact capture on `:5721`;
 - deterministic structured and agent-text projections.
 
-Current live-showcase pressure:
+The live Canvas pressure case now exposes and guards four keyed bindings directly:
 
-- expose the already-proven authored binding IDs directly on the four Canvas sub-parts;
-- use the showcase as the target of a real agent diagnose → edit → recapture → verify loop;
-- keep anonymous generic paint mixed with authored evidence so instrumentation never pretends to semanticize the full renderer.
+```text
+showcase:painted-rectangle -> outline, handle
+showcase:painted-circle    -> ring, center
+```
+
+Canvas background/text remain anonymous generic paint so instrumentation never pretends to semanticize the entire renderer.
 
 ## M3 — diff and continuity
 
 **Canonical and exact-egui slices established.**
 
-Canonical `WitnessDiff` covers:
-
-- nodes added/removed;
-- field/bounds/state changes;
-- relations added/removed;
-- viewport/version changes;
-- frame numbers as context rather than material change.
+Canonical `WitnessDiff` covers nodes, fields/state/bounds, relations, viewport/version changes, and frame context without treating frame-number churn as material state.
 
 `EguiCorrelatedDiff` adds authored custom-paint continuity without polluting the canonical model.
 
 Proven object rules:
 
 - authored object ID only auto-matches when unique on both sides;
-- duplicate object IDs become explicit ambiguity.
+- duplicate object IDs become explicit ambiguity;
+- object-level changes cover object semantics (`role`, `name`, semantic provenance), not an opaque binding collection.
 
 Proven binding rules:
 
@@ -118,14 +116,16 @@ Proven binding rules:
 - duplicate binding IDs become explicit ambiguity;
 - unkeyed bindings retain conservative relative-unkeyed-ordinal matching;
 - keyed and unkeyed bindings can coexist;
+- binding additions/removals are first-class records;
+- material binding changes are field-granular (`kind`, `bounds`, `clip_rect`, layer, verification, evidence);
 - material binding state excludes `ShapeIdx`;
-- pure `ShapeIdx` churn is diagnostic `execution_handle_churn`, not a logical object change.
+- pure `ShapeIdx` churn is diagnostic `execution_handle_churn`, not a logical change.
 
-A real egui experiment proved why this matters: inserting unrelated paint can shift `ShapeIdx` while the authored object remains unchanged. Another experiment reversed keyed sub-binding submission order and preserved `outline`/`handle` continuity while renderer slots changed.
+A real egui experiment proved unrelated prefix paint can shift `ShapeIdx` while authored state remains unchanged. Another reversed keyed submission order while preserving `outline`/`handle` identity.
 
 Remaining diff pressure:
 
-- richer real-world exact transitions from the showcase;
+- richer exact transitions from real application/showcase defects;
 - avoid generic anonymous paint diffing until a trustworthy continuity source exists;
 - expose matching basis whenever future reconciliation becomes more sophisticated.
 
@@ -146,7 +146,7 @@ viewwitness diff-exact <before> <after> [--agent|--yaml]
 viewwitness screenshot <output.png> [--address=HOST:PORT] [--scale=N]
 ```
 
-The exact verification workflow is deliberately composable:
+The exact workflow is deliberately composable:
 
 ```text
 capture-exact --yaml > before.yaml
@@ -155,15 +155,13 @@ capture-exact --yaml > after.yaml
 diff-exact before.yaml after.yaml
 ```
 
-`diff-exact` compares saved correlated captures. It does not secretly perform actions or recapture state. Agent text remains the default; YAML remains the structured interchange/debug form.
-
-The CLI stays orchestration around library behavior, never a second model.
+`diff-exact` compares saved correlated captures only. It does not secretly perform actions or recapture state. Agent text remains the default; YAML remains the structured interchange/debug form.
 
 ## M5 — agent verification loop
 
-**Next major milestone.**
+**First executable slice established.**
 
-The observation vocabulary is now strong enough to pressure a real loop:
+The target workflow is:
 
 ```text
 capture
@@ -174,9 +172,22 @@ capture
     -> verify the intended state changed without hiding unrelated churn
 ```
 
-The first target should be the native showcase because it already exposes conventional semantics, custom paint, exact capture, anonymous paint, clipping/layer pressure, and both semantic and rendered evidence.
+The first real-egui verification probe now executes the evidence half of this loop end to end. It captures one authored `diagram_node` with keyed `body` and `handle` parts in a broken state, then captures a fixed state after also inserting unrelated prefix paint.
 
-MCP remains a plausible integration surface later, but the canonical model must remain independent of MCP. Observation and control must stay conceptually separate; the witness system must remain useful without mutation authority.
+The accepted result is intentionally precise:
+
+```text
+material:     handle.bounds changed
+non-material: body ShapeIdx churned because unrelated paint shifted renderer slots
+false noise:  no body material change
+false blob:   no object-level field="bindings"
+```
+
+This forced a useful contract improvement: authored binding changes are now first-class and field-granular, so an agent can see exactly which named rendered sub-part changed rather than re-diffing an opaque binding collection itself.
+
+What M5 has **not** yet proven is autonomous source modification. The next step is to apply the same observation → edit → recapture → verification discipline against an actual intentionally broken showcase scenario, with source changes performed outside the GUI thread and verification based on ViewWitness evidence rather than visual assertion alone.
+
+MCP remains a plausible integration surface later, but the canonical model must remain independent of MCP. Observation and control stay conceptually separate; ViewWitness must remain useful without mutation authority.
 
 ## Open rendered-evidence research
 
