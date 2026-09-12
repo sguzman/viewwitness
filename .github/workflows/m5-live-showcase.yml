@@ -7,6 +7,7 @@ on:
       - ".github/workflows/m5-live-showcase.yml"
       - "scripts/m5-live-showcase.sh"
       - "scripts/m5-source-repair-loop.sh"
+      - "scripts/m5-clip-repair-loop.sh"
       - "examples/showcase.rs"
       - "src/**"
       - "Cargo.toml"
@@ -29,18 +30,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libxkbcommon-x11-0
 
-      - name: Build broken showcase and exact observer
+      - name: Build showcase and exact observer
         run: |
           cargo build --example showcase --features showcase
           cargo build --features egui --bin viewwitness
 
-      - name: Execute live source repair loop
+      - name: Execute live handle source repair loop
         run: bash scripts/m5-source-repair-loop.sh
+
+      - name: Execute live clipping source repair loop
+        run: bash scripts/m5-clip-repair-loop.sh
 
       - name: Preserve repair evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: m5-live-source-repair-evidence
-          path: target/m5-source-repair/
+          path: |
+            target/m5-source-repair/
+            target/m5-clip-repair/
           if-no-files-found: error
