@@ -272,7 +272,11 @@ fn sorted_authored_objects(capture: &EguiCorrelatedCapture) -> Vec<&EguiAuthored
     authored
 }
 
-fn write_capture_object(output: &mut String, object_index: usize, object: &EguiAuthoredPaintObject) {
+fn write_capture_object(
+    output: &mut String,
+    object_index: usize,
+    object: &EguiAuthoredPaintObject,
+) {
     write!(
         output,
         "authored-object index={} id={} role={}",
