@@ -1,4 +1,4 @@
-name: M5 Live Showcase
+name: M5 Live Source Repair
 
 on:
   workflow_dispatch:
@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/m5-live-showcase.yml"
       - "scripts/m5-live-showcase.sh"
+      - "scripts/m5-source-repair-loop.sh"
       - "examples/showcase.rs"
       - "src/**"
       - "Cargo.toml"
@@ -16,8 +17,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  live-showcase:
+  source-repair:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -27,17 +29,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libxkbcommon-x11-0
 
-      - name: Build showcase and exact observer
+      - name: Build broken showcase and exact observer
         run: |
           cargo build --example showcase --features showcase
           cargo build --features egui --bin viewwitness
 
-      - name: Capture broken native showcase
-        run: bash scripts/m5-live-showcase.sh
+      - name: Execute live source repair loop
+        run: bash scripts/m5-source-repair-loop.sh
 
-      - name: Preserve live evidence
+      - name: Preserve repair evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: m5-live-broken-evidence
-          path: target/m5-live-showcase/
+          name: m5-live-source-repair-evidence
+          path: target/m5-source-repair/
           if-no-files-found: error
