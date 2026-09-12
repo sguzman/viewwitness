@@ -44,6 +44,8 @@ fn stage_e_sandbox_builder_uses_committed_head_and_excludes_answer_history() {
     assert!(script.contains("$WORKSPACE/scripts"));
     assert!(script.contains("$WORKSPACE/prompts"));
     assert!(script.contains("$WORKSPACE/.github"));
+    assert!(script.contains("mktemp -d \"${TMPDIR:-/tmp}/viewwitness-m5-sandbox-target.XXXXXX\""));
+    assert!(script.contains("CARGO_TARGET_DIR=\"$SANDBOX_CARGO_TARGET\""));
     assert!(script.contains("cargo check --example showcase --features showcase"));
 }
 
