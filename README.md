@@ -51,7 +51,7 @@ A semantic node is not automatically a paint primitive. Rectangle overlap is not
 - `examples/snapshots/` — representative GUI witnesses.
 - `examples/transitions/` — before/after witnesses for state-transition and diff work.
 - `examples/showcase.rs` — native eframe pressure surface for capture and diagnosis.
-- `tests/` — executable checks over corpus, real egui output, identity, diffs, agent verification, backpressure, custom paint, and live protocol framing.
+- `tests/` — executable checks over corpus, real egui output, identity, diffs, focused inspection, agent verification, backpressure, custom paint, and live protocol framing.
 
 ## Current egui slice
 
@@ -138,7 +138,7 @@ Generic anonymous paint is not naively list-diffed because it lacks durable iden
 
 ## First executable agent-verification slice
 
-A real-egui test now exercises the first evidence-level diagnose/fix/verify pressure case.
+A real-egui test exercises the first evidence-level diagnose/fix/verify pressure case.
 
 One authored object has keyed `body` and `handle` bindings. The broken capture puts the handle far away from the body. The fixed capture moves the same keyed handle onto the body edge while also inserting unrelated anonymous paint before the object, deliberately shifting renderer slots.
 
@@ -151,7 +151,9 @@ not reported: body material change
 not reported: object-level field="bindings"
 ```
 
-This is the first executable proof that ViewWitness can preserve the application-level change an agent cares about while separating unrelated renderer bookkeeping churn in the same transition. It does not yet claim autonomous source modification; that is the next pressure step.
+This is the first executable proof that ViewWitness can preserve the application-level change an agent cares about while separating unrelated renderer bookkeeping churn in the same transition.
+
+The native showcase now contains the corresponding **live broken state**. On the Canvas page, the `Misplaced canvas handle` pressure switch displaces only `showcase:painted-rectangle`'s keyed `handle` while leaving its `outline` fixed. The state and the four binding keys are regression-guarded.
 
 ## Exact external capture protocol
 
@@ -162,6 +164,20 @@ VIEWWITNESS-EGUI-CAPTURE 2
 ```
 
 Protocol v2 introduced the one-object-with-`bindings[]` envelope. Optional authored binding IDs are an additive field inside that v2 shape: existing v2 captures without the field deserialize as unkeyed bindings, so no protocol bump is required.
+
+## Focused exact inspection
+
+A full `EguiCorrelatedCapture` remains the complete exact envelope. For agent diagnosis, ViewWitness can also project only one authored object and optionally one authored binding through `correlated_capture_authored_focus_to_agent_text`.
+
+The focused projection deliberately does **not** masquerade as a complete witness. Its header retains request/pass/viewport correlation metadata and labels itself:
+
+```text
+projection=authored_focus omitted=canonical_semantics,generic_paint
+```
+
+It also reports `object_match_count` and `binding_match_count`. Duplicate authored IDs remain multiple visible matches rather than being silently collapsed; missing IDs produce explicit zero-match output. This gives an agent a small “show me this rendered object/part” surface without weakening provenance or inventing uniqueness.
+
+Focused output is agent text only. YAML remains reserved for the full correlated envelope.
 
 ## CLI
 
@@ -178,6 +194,20 @@ cargo run --features egui --bin viewwitness -- capture-exact
 cargo run --features egui --bin viewwitness -- capture-exact --yaml
 ```
 
+Focused live diagnosis:
+
+```text
+cargo run --features egui --bin viewwitness -- capture-exact --object=showcase:painted-rectangle
+cargo run --features egui --bin viewwitness -- capture-exact --object=showcase:painted-rectangle --binding=handle
+```
+
+Saved-envelope inspection:
+
+```text
+cargo run --features egui --bin viewwitness -- inspect-exact before.yaml
+cargo run --features egui --bin viewwitness -- inspect-exact before.yaml --object=showcase:painted-rectangle --binding=handle
+```
+
 Exact before/after verification over saved correlated envelopes:
 
 ```text
@@ -188,6 +218,8 @@ cargo run --features egui --bin viewwitness -- diff-exact before.yaml after.yaml
 ```
 
 `diff-exact --yaml` emits the structured correlated diff. Agent text is the default and explicitly labels object-level changes, binding additions/removals/field changes, ambiguity, and non-material execution-handle churn.
+
+For focused exact inspection, `--binding` requires `--object`. Focus cannot be combined with `--yaml` or `--derive` because the focused projection intentionally omits canonical semantics and generic paint.
 
 The exact capture command defaults to `127.0.0.1:5721`; a different address may be supplied positionally.
 
@@ -232,15 +264,16 @@ ViewWitness has moved well beyond format-only exploration. The current project h
 - identity-aware `EguiCorrelatedDiff` with explicit object and binding ambiguity;
 - first-class binding add/remove and field-level material changes;
 - deterministic correlated capture/diff agent text;
-- `capture-exact` and `diff-exact` CLI workflows;
-- a living eframe showcase with worker-hosted `:5720` and `:5721` services and four guarded keyed Canvas bindings;
-- a first real-egui agent-verification pressure test that isolates a keyed handle fix from unrelated renderer-slot churn;
+- full and focused exact inspection through `capture-exact` / `inspect-exact`;
+- `diff-exact` over saved correlated envelopes;
+- a living eframe showcase with worker-hosted `:5720` and `:5721` services, four guarded keyed Canvas bindings, and a guarded live misplaced-handle defect;
+- a real-egui agent-verification pressure test that isolates a keyed handle fix from unrelated renderer-slot churn;
 - external semantic/raster observation through `egui_inspection`;
 - CI over default and all-features builds.
 
 The v0 canonical `Witness` schema is still intentionally provisional. Generic paint and authored-object/binding evidence remain egui-specific rather than being prematurely promoted into the cross-backend model.
 
-The next pressure is narrower now: **an intentionally broken live-showcase scenario exercised through inspect → source edit → recapture → verify**, safe mapping (if any) from layer-local authored bindings to flattened renderer order, more multi-window/viewport pressure, and stronger raster evidence before any canonical occlusion claim.
+The next pressure is narrower now: **perform an actual source edit against the existing live misplaced-handle scenario, rebuild/recapture, and prove the fix through full correlated diff evidence**. Turning the pressure switch off is useful action/state verification but does not count as source-edit proof. Other open pressure includes safe mapping (if any) from layer-local authored bindings to flattened renderer order, more multi-window/viewport pressure, and stronger raster evidence before any canonical occlusion claim.
 
 ## Non-goals for the first phase
 
