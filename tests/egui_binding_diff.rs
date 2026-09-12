@@ -24,6 +24,9 @@ fn keyed_binding_reorder_is_non_material_and_reports_handle_churn_by_id() {
 
     let diff = diff_correlated_captures(&before, &after);
     assert!(diff.authored.objects_changed.is_empty());
+    assert!(diff.authored.bindings_added.is_empty());
+    assert!(diff.authored.bindings_removed.is_empty());
+    assert!(diff.authored.bindings_changed.is_empty());
     assert!(diff.authored.binding_ambiguities.is_empty());
     assert_eq!(diff.authored.execution_handle_churn.len(), 2);
     assert!(diff.is_materially_empty());
@@ -38,7 +41,7 @@ fn keyed_binding_reorder_is_non_material_and_reports_handle_churn_by_id() {
 }
 
 #[test]
-fn keyed_binding_material_change_remains_material() {
+fn keyed_binding_material_change_is_field_granular() {
     let before = capture(
         1,
         vec![object(vec![binding(
@@ -59,13 +62,58 @@ fn keyed_binding_material_change_remains_material() {
     );
 
     let diff = diff_correlated_captures(&before, &after);
-    assert_eq!(diff.authored.objects_changed.len(), 1);
-    assert!(
-        diff.authored.objects_changed[0]
-            .fields
-            .contains_key("bindings")
+    assert!(diff.authored.objects_changed.is_empty());
+    assert_eq!(diff.authored.bindings_changed.len(), 1);
+    let change = &diff.authored.bindings_changed[0];
+    assert_eq!(change.object_id, "canvas:keyed");
+    assert_eq!(change.authored_binding_id.as_deref(), Some("outline"));
+    assert_eq!(change.unkeyed_ordinal, None);
+    assert_eq!(
+        change.fields.keys().map(String::as_str).collect::<Vec<_>>(),
+        vec!["kind"]
     );
     assert!(diff.authored.execution_handle_churn.is_empty());
+    assert!(!diff.is_materially_empty());
+}
+
+#[test]
+fn keyed_binding_addition_and_removal_are_first_class() {
+    let before = capture(
+        1,
+        vec![object(vec![binding(
+            "outline",
+            EguiPaintKind::Rect,
+            3,
+            10.0,
+        )])],
+    );
+    let after = capture(
+        2,
+        vec![object(vec![binding(
+            "handle",
+            EguiPaintKind::Circle,
+            8,
+            30.0,
+        )])],
+    );
+
+    let diff = diff_correlated_captures(&before, &after);
+    assert_eq!(diff.authored.bindings_removed.len(), 1);
+    assert_eq!(diff.authored.bindings_added.len(), 1);
+    assert_eq!(
+        diff.authored.bindings_removed[0]
+            .binding
+            .authored_binding_id
+            .as_deref(),
+        Some("outline")
+    );
+    assert_eq!(
+        diff.authored.bindings_added[0]
+            .binding
+            .authored_binding_id
+            .as_deref(),
+        Some("handle")
+    );
     assert!(!diff.is_materially_empty());
 }
 
@@ -96,6 +144,9 @@ fn duplicate_binding_ids_are_explicit_ambiguity() {
     assert_eq!(ambiguity.before_count, 2);
     assert_eq!(ambiguity.after_count, 1);
     assert!(diff.authored.objects_changed.is_empty());
+    assert!(diff.authored.bindings_added.is_empty());
+    assert!(diff.authored.bindings_removed.is_empty());
+    assert!(diff.authored.bindings_changed.is_empty());
     assert!(diff.authored.execution_handle_churn.is_empty());
     assert!(!diff.is_materially_empty());
 }
@@ -119,8 +170,44 @@ fn keyed_and_unkeyed_bindings_can_coexist_without_losing_legacy_order_semantics(
 
     let diff = diff_correlated_captures(&before, &after);
     assert!(diff.authored.objects_changed.is_empty());
+    assert!(diff.authored.bindings_changed.is_empty());
     assert_eq!(diff.authored.execution_handle_churn.len(), 2);
     assert!(diff.is_materially_empty());
+}
+
+#[test]
+fn unkeyed_binding_change_reports_relative_unkeyed_ordinal() {
+    let before = capture(
+        1,
+        vec![object(vec![
+            binding("outline", EguiPaintKind::Rect, 3, 10.0),
+            unkeyed(EguiPaintKind::Circle, 4, 30.0),
+        ])],
+    );
+    let after = capture(
+        2,
+        vec![object(vec![
+            binding("outline", EguiPaintKind::Rect, 9, 10.0),
+            unkeyed(EguiPaintKind::Circle, 10, 35.0),
+        ])],
+    );
+
+    let diff = diff_correlated_captures(&before, &after);
+    assert_eq!(diff.authored.bindings_changed.len(), 1);
+    let change = &diff.authored.bindings_changed[0];
+    assert_eq!(change.authored_binding_id, None);
+    assert_eq!(change.unkeyed_ordinal, Some(0));
+    assert_eq!(
+        change.fields.keys().map(String::as_str).collect::<Vec<_>>(),
+        vec!["bounds"]
+    );
+    assert_eq!(diff.authored.execution_handle_churn.len(), 1);
+    assert_eq!(
+        diff.authored.execution_handle_churn[0]
+            .authored_binding_id
+            .as_deref(),
+        Some("outline")
+    );
 }
 
 fn object(bindings: Vec<EguiAuthoredPaintBinding>) -> EguiAuthoredPaintObject {
