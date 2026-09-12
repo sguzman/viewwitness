@@ -35,7 +35,9 @@ fn stage_e_sandbox_builder_uses_committed_head_and_excludes_answer_history() {
     let script = fs::read_to_string(root.join("scripts/m5-prepare-agent-sandbox.sh"))
         .expect("read Stage E sandbox builder");
 
-    assert!(script.contains("git -C \"$TRUSTED_ROOT\" archive HEAD Cargo.toml Cargo.lock src examples"));
+    assert!(
+        script.contains("git -C \"$TRUSTED_ROOT\" archive HEAD Cargo.toml Cargo.lock src examples")
+    );
     assert!(script.contains("$WORKSPACE/tests"));
     assert!(script.contains("$WORKSPACE/docs"));
     assert!(script.contains("$WORKSPACE/scripts"));
