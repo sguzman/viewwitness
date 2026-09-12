@@ -1,6 +1,6 @@
 # Rendered evidence — egui v0 research
 
-ViewWitness cannot stop at accessibility semantics. A GUI can be semantically well described while still being visibly broken: clipped, covered, painted in the wrong order, overflowing, or custom-drawn without meaningful accessibility nodes.
+ViewWitness cannot stop at accessibility semantics. A GUI can be semantically well described while still be visibly broken: clipped, covered, painted in the wrong order, overflowing, or custom-drawn without meaningful accessibility nodes.
 
 This document records executable rendered-evidence findings from egui. These findings remain separate from the canonical `Witness` schema until the concepts survive enough pressure to justify cross-backend names.
 
@@ -204,13 +204,47 @@ unique authored_binding_id on both sides  -> match by key, order-independent
 duplicate authored_binding_id             -> explicit ambiguity, matching refused
 no authored_binding_id                     -> conservative relative-unkeyed-ordinal match
 keyed + unkeyed bindings                   -> allowed together
+binding appears/disappears                 -> first-class add/remove record
 ShapeIdx-only change                        -> diagnostic, material=false
-kind/bounds/clip/layer/verification change -> material binding change
+kind/bounds/clip/layer/verification change -> first-class field-granular material change
 ```
+
+Object semantics and rendered binding state are now separate diff surfaces. A binding move is no longer emitted as one opaque object-level `field="bindings"` replacement. If the application supplied a unique sub-binding key, ViewWitness can say exactly which named part and field changed.
 
 Duplicate binding IDs are not silently deduplicated or repaired. `EguiAuthoredBindingIdAmbiguity` preserves the conflict explicitly.
 
 Generic anonymous paint still lacks this continuity source and is therefore not naively list-diffed.
+
+## First agent-verification pressure experiment
+
+The first M5 real-egui pressure test constructs one logical object with keyed `body` and `handle` bindings.
+
+Broken capture:
+
+```text
+body   bounds=[40,30,60,40]
+handle bounds=[145,45,10,10]   # visibly/logically far from body edge
+```
+
+Fixed capture:
+
+```text
+body   unchanged
+handle bounds=[95,45,10,10]    # moved to right edge of body
+```
+
+The fixed frame also inserts unrelated anonymous paint **before** the authored object. This deliberately perturbs layer-local renderer slots so the test must distinguish the application fix from execution churn.
+
+The resulting correlated diff is required to contain:
+
+```text
+authored-binding-change object_id="agent-loop:node" authored_binding_id="handle" field="bounds" ...
+authored-handle-churn id="agent-loop:node" authored_binding_id="body" ... material=false
+```
+
+It must not contain a material change for `body`, and it must not collapse the change into `field="bindings"`.
+
+This is a stronger result than merely proving IDs persist. It demonstrates that ViewWitness can isolate a concrete rendered sub-part fix while suppressing unrelated renderer-slot noise in the same transition.
 
 ## Agent projections
 
@@ -218,7 +252,9 @@ Correlated capture text emits one logical `authored-object` line followed by one
 
 Correlated diff text separates:
 
-- `authored-change` — material state change;
+- `authored-change` — object-level authored semantics changed;
+- `+authored-binding` / `-authored-binding` — sub-part appeared/disappeared;
+- `authored-binding-change` — a named or ordinal binding field materially changed;
 - `authored-ambiguity` — object ID is not a trustworthy match key;
 - `authored-binding-ambiguity` — sub-binding ID is not a trustworthy match key;
 - `authored-handle-churn` — renderer slot changed but material state did not.
@@ -239,9 +275,14 @@ v2 was required when the envelope changed from repeated object semantics per han
 
 ## Live showcase pressure case
 
-The native showcase contains two authored Canvas objects with four paint bindings: rectangle outline + handle, and circle ring + center marker. The canvas background and text labels remain ordinary anonymous paint.
+The native showcase contains two authored Canvas objects with four explicitly keyed paint bindings:
 
-The next live pressure is to make those four constituent bindings explicitly keyed as well, so real external `capture-exact` / `diff-exact` sessions demonstrate the same sub-binding continuity already proven in the headless egui tests.
+```text
+showcase:painted-rectangle -> outline, handle
+showcase:painted-circle    -> ring, center
+```
+
+A source-level regression test guards those four keys. The canvas background and text labels remain ordinary anonymous paint, preserving the distinction between instrumented identity and generic renderer evidence.
 
 ## What remains unknown
 
@@ -251,8 +292,7 @@ Likewise, an authored binding proves a **layer-local** paint handle. ViewWitness
 
 The next useful pressure cases are therefore:
 
-- keyed bindings in the live showcase;
-- a real agent debugging workflow against that showcase;
+- an intentionally broken live-showcase scenario exercised through inspect → source edit → recapture → verify;
 - safe layer-local-handle → flattened-renderer-order mapping, if one can be proven;
 - more multi-window/viewport exact-capture pressure;
 - stronger raster evidence before any canonical visual-occlusion claim.
@@ -268,6 +308,7 @@ For now:
 - bounding-box clip survival is deterministic derived evidence for generic paint and authored bindings;
 - `EguiCorrelatedCapture` proves same-pass origin without implying generic widget↔paint identity;
 - explicitly instrumented custom paint can carry authored object identity plus optional authored binding identity and observed end-of-pass renderer bindings;
+- authored binding diffs may be field-granular when continuity evidence supports that claim;
 - duplicate object or binding IDs remain explicit ambiguity rather than heuristic matches;
 - screenshots remain supporting raster evidence unless their transport supplies trustworthy same-frame correlation;
 - generic widget↔paint association remains unknown unless a source explicitly supplies it.
