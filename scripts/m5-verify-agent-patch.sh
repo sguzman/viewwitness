@@ -83,9 +83,10 @@ worktree_registered=1
   git diff --binary >"$OUT_DIR/applied-candidate.patch"
 )
 
-# The verifier executable is invoked from the trusted checkout and receives the
-# fresh candidate worktree only as the application build root.
-"$TRUSTED_ROOT/scripts/m5-verify-handle-candidate.sh" \
+# The verifier is invoked from the trusted checkout through bash so verification
+# does not depend on the repository file's executable bit. It receives the fresh
+# candidate worktree only as the application build root.
+bash "$TRUSTED_ROOT/scripts/m5-verify-handle-candidate.sh" \
   "$BASELINE_DIR" "$OUT_DIR" "$WORKTREE"
 
 echo "M5 trusted agent-patch verification succeeded"
