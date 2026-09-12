@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+TRUSTED_ROOT="$(pwd -P)"
 BASELINE_DIR="${1:-target/m5-separated/baseline}"
 OUT_DIR="${2:-target/m5-separated/verifier}"
+CANDIDATE_ROOT="${3:-.}"
+
 mkdir -p "$OUT_DIR"
+BASELINE_DIR="$(realpath "$BASELINE_DIR")"
+OUT_DIR="$(realpath "$OUT_DIR")"
+CANDIDATE_ROOT="$(realpath "$CANDIDATE_ROOT")"
 
 BASELINE_YAML="$BASELINE_DIR/broken.yaml"
 BASELINE_HANDLE="$BASELINE_DIR/handle-focus.txt"
@@ -35,17 +41,27 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Verification builds the candidate source tree exactly as handed to it.
-# This script has no source-edit or source-restoration authority.
-cargo build --example showcase --features showcase
-cargo build --features egui --bin viewwitness
+# Build the observer CLI from the trusted checkout, then build only the candidate
+# application's showcase from the candidate tree. The verifier has no source-edit
+# or source-restoration authority.
+(
+  cd "$TRUSTED_ROOT"
+  cargo build --features egui --bin viewwitness
+)
+TRUSTED_VIEWWITNESS="$TRUSTED_ROOT/target/debug/viewwitness"
+
+(
+  cd "$CANDIDATE_ROOT"
+  cargo build --example showcase --features showcase
+)
+CANDIDATE_SHOWCASE="$CANDIDATE_ROOT/target/debug/examples/showcase"
 
 Xvfb "$DISPLAY" -screen 0 1280x900x24 -nolisten tcp >"$OUT_DIR/xvfb.log" 2>&1 &
 XVFB_PID=$!
 sleep 1
 
 VIEWWITNESS_SHOWCASE_SCENARIO=misplaced-handle \
-  target/debug/examples/showcase >"$OUT_DIR/showcase.log" 2>&1 &
+  "$CANDIDATE_SHOWCASE" >"$OUT_DIR/showcase.log" 2>&1 &
 APP_PID=$!
 
 captured=0
@@ -56,7 +72,7 @@ for _attempt in $(seq 1 60); do
     exit 1
   fi
 
-  if target/debug/viewwitness capture-exact --yaml \
+  if "$TRUSTED_VIEWWITNESS" capture-exact --yaml \
       >"$OUT_DIR/candidate.yaml" 2>"$OUT_DIR/capture.err"; then
     captured=1
     break
@@ -71,11 +87,11 @@ if [[ "$captured" -ne 1 ]]; then
   exit 1
 fi
 
-target/debug/viewwitness inspect-exact "$OUT_DIR/candidate.yaml" \
+"$TRUSTED_VIEWWITNESS" inspect-exact "$OUT_DIR/candidate.yaml" \
   --object=showcase:painted-rectangle --binding=handle \
   | tee "$OUT_DIR/handle-focus.txt"
 
-target/debug/viewwitness inspect-exact "$OUT_DIR/candidate.yaml" \
+"$TRUSTED_VIEWWITNESS" inspect-exact "$OUT_DIR/candidate.yaml" \
   --object=showcase:painted-rectangle --binding=outline \
   | tee "$OUT_DIR/outline-focus.txt"
 
@@ -87,7 +103,7 @@ done
 grep -q 'authored_binding_id="handle"' "$OUT_DIR/handle-focus.txt"
 grep -q 'authored_binding_id="outline"' "$OUT_DIR/outline-focus.txt"
 
-target/debug/viewwitness diff-exact "$BASELINE_YAML" "$OUT_DIR/candidate.yaml" \
+"$TRUSTED_VIEWWITNESS" diff-exact "$BASELINE_YAML" "$OUT_DIR/candidate.yaml" \
   | tee "$OUT_DIR/baseline-to-candidate.diff.txt"
 
 # The repair must be material and isolated to the named handle's geometry.
@@ -101,21 +117,29 @@ if [[ "$material_binding_changes" -ne 1 ]]; then
   exit 1
 fi
 
-if grep -q '^authored-change ' "$OUT_DIR/baseline-to-candidate.diff.txt"; then
+if grep -Eq '^authored-(object-)?change ' "$OUT_DIR/baseline-to-candidate.diff.txt"; then
   echo "candidate introduced authored object-level material change" >&2
   cat "$OUT_DIR/baseline-to-candidate.diff.txt" >&2
   exit 1
 fi
 
-if grep -q '^authored-binding-add\|^authored-binding-remove\|^authored-add\|^authored-remove' \
-    "$OUT_DIR/baseline-to-candidate.diff.txt"; then
+if grep -Eq '^authored-(binding-)?(add|remove) ' "$OUT_DIR/baseline-to-candidate.diff.txt"; then
   echo "candidate changed authored object/binding membership" >&2
   cat "$OUT_DIR/baseline-to-candidate.diff.txt" >&2
   exit 1
 fi
 
-if grep -q '^authored-ambiguity\|^authored-binding-ambiguity' "$OUT_DIR/baseline-to-candidate.diff.txt"; then
+if grep -Eq '^authored-(binding-)?ambiguity ' "$OUT_DIR/baseline-to-candidate.diff.txt"; then
   echo "candidate introduced authored identity ambiguity" >&2
+  cat "$OUT_DIR/baseline-to-candidate.diff.txt" >&2
+  exit 1
+fi
+
+# The cooperative coding agent may refactor application source, but this acceptance
+# case must not perturb canonical semantic evidence either.
+if grep -Eq '^(\+node |-node |change node=|\+relation |-relation )' \
+    "$OUT_DIR/baseline-to-candidate.diff.txt"; then
+  echo "candidate introduced collateral canonical semantic change" >&2
   cat "$OUT_DIR/baseline-to-candidate.diff.txt" >&2
   exit 1
 fi
