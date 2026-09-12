@@ -48,9 +48,11 @@ A semantic node is not automatically a paint primitive. Rectangle overlap is not
 - `docs/egui.md` — egui/AccessKit/rendered-evidence architecture and UI-thread boundary.
 - `docs/rendered-evidence.md` — executable findings about paint, clipping, identity, and visual epistemics.
 - `docs/roadmap.md` — accepted milestones and remaining pressure points.
+- `docs/acceptance/` — durable records of milestone acceptance runs and their evidence provenance.
 - `examples/snapshots/` — representative GUI witnesses.
 - `examples/transitions/` — before/after witnesses for state-transition and diff work.
 - `examples/showcase.rs` — native eframe pressure surface for capture and diagnosis.
+- `scripts/` — operator/acceptance harnesses that keep heavy orchestration outside the render thread.
 - `tests/` — executable checks over corpus, real egui output, identity, diffs, focused inspection, agent verification, backpressure, custom paint, and live protocol framing.
 
 ## Current egui slice
@@ -136,11 +138,9 @@ That means an agent can receive `handle.bounds changed` instead of an opaque obj
 
 Generic anonymous paint is not naively list-diffed because it lacks durable identity.
 
-## First executable agent-verification slice
+## Agent verification and first live source repair
 
-A real-egui test exercises the first evidence-level diagnose/fix/verify pressure case.
-
-One authored object has keyed `body` and `handle` bindings. The broken capture puts the handle far away from the body. The fixed capture moves the same keyed handle onto the body edge while also inserting unrelated anonymous paint before the object, deliberately shifting renderer slots.
+A real-egui test first established the evidence-level diagnose/fix/verify contract. One authored object has keyed `body` and `handle` bindings. The broken capture puts the handle far away from the body. The fixed capture moves the same keyed handle onto the body edge while also inserting unrelated anonymous paint before the object, deliberately shifting renderer slots.
 
 The accepted correlated diff isolates exactly:
 
@@ -151,9 +151,33 @@ not reported: body material change
 not reported: object-level field="bindings"
 ```
 
-This is the first executable proof that ViewWitness can preserve the application-level change an agent cares about while separating unrelated renderer bookkeeping churn in the same transition.
+The native showcase contains the corresponding **live broken state**. On the Canvas page, the `Misplaced canvas handle` pressure switch displaces only `showcase:painted-rectangle`'s keyed `handle` while leaving its `outline` fixed. The state and the four binding keys are regression-guarded and the broken scenario can be launched deterministically.
 
-The native showcase now contains the corresponding **live broken state**. On the Canvas page, the `Misplaced canvas handle` pressure switch displaces only `showcase:painted-rectangle`'s keyed `handle` while leaving its `outline` fixed. The state and the four binding keys are regression-guarded.
+ViewWitness has now also crossed the source-edit boundary against that real native application. The `M5 Live Source Repair` workflow:
+
+```text
+launches checked-in broken eframe showcase
+  -> exact capture + focused diagnosis
+  -> edits examples/showcase.rs (60 px displacement -> 0)
+  -> rebuilds the native application
+  -> relaunches the same scenario
+  -> exact recapture
+  -> diff-exact broken vs repaired envelopes
+  -> independently checks geometry and collateral stability
+```
+
+The accepted live evidence was:
+
+```text
+broken handle:  [513,215,10,10]
+fixed handle:   [453,215,10,10]
+outline before: [307,169,152,102]
+outline after:  [307,169,152,102]
+```
+
+`diff-exact` emitted a single material authored change for `showcase:painted-rectangle / handle / bounds`. The harness also proves the handle moved exactly 60 logical pixels left and that the outline did not move materially.
+
+The checked-in showcase intentionally remains broken so this source-edit experiment stays reproducible. The isolated workflow checkout is repaired and rebuilt, then restored during cleanup. See `docs/acceptance/m5-live-source-repair.md`.
 
 ## Exact external capture protocol
 
@@ -266,14 +290,14 @@ ViewWitness has moved well beyond format-only exploration. The current project h
 - deterministic correlated capture/diff agent text;
 - full and focused exact inspection through `capture-exact` / `inspect-exact`;
 - `diff-exact` over saved correlated envelopes;
-- a living eframe showcase with worker-hosted `:5720` and `:5721` services, four guarded keyed Canvas bindings, and a guarded live misplaced-handle defect;
-- a real-egui agent-verification pressure test that isolates a keyed handle fix from unrelated renderer-slot churn;
+- a living eframe showcase with worker-hosted `:5720` and `:5721` services, four guarded keyed Canvas bindings, and a deterministic live misplaced-handle defect;
+- a native Xvfb acceptance harness that captures a broken running app, edits Rust source, rebuilds, recaptures, and proves the named repair with ViewWitness evidence;
 - external semantic/raster observation through `egui_inspection`;
-- CI over default and all-features builds.
+- CI over default and all-features builds plus the dedicated native M5 source-repair workflow.
 
 The v0 canonical `Witness` schema is still intentionally provisional. Generic paint and authored-object/binding evidence remain egui-specific rather than being prematurely promoted into the cross-backend model.
 
-The next pressure is narrower now: **perform an actual source edit against the existing live misplaced-handle scenario, rebuild/recapture, and prove the fix through full correlated diff evidence**. Turning the pressure switch off is useful action/state verification but does not count as source-edit proof. Other open pressure includes safe mapping (if any) from layer-local authored bindings to flattened renderer order, more multi-window/viewport pressure, and stronger raster evidence before any canonical occlusion claim.
+The next M5 pressure is no longer “can source editing be verified?” That first slice is established. The next work is to **remove repair scaffolding**: make the coding agent locate the responsible source without a pre-encoded replacement string, let it choose/apply the patch through the normal coding workflow, independently verify the result, and add a second qualitatively different defect class so success cannot collapse into memorizing one handle-offset recipe. Other open pressure includes safe mapping (if any) from layer-local authored bindings to flattened renderer order, more multi-window/viewport pressure, and stronger raster evidence before any canonical occlusion claim.
 
 ## Non-goals for the first phase
 
