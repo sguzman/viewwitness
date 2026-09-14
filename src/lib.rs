@@ -14,6 +14,8 @@ mod egui_capture_transport;
 #[cfg(feature = "egui")]
 mod egui_diff;
 #[cfg(feature = "egui")]
+mod egui_epistemic;
+#[cfg(feature = "egui")]
 mod egui_frame_probe;
 #[cfg(feature = "egui")]
 mod egui_paint;
@@ -50,6 +52,10 @@ pub use egui_diff::{
     EguiAuthoredBindingChange, EguiAuthoredBindingDelta, EguiAuthoredBindingIdAmbiguity,
     EguiAuthoredDiff, EguiAuthoredExecutionHandleChange, EguiAuthoredIdAmbiguity,
     EguiAuthoredObjectChange, EguiCorrelatedDiff, diff_correlated_captures,
+};
+#[cfg(feature = "egui")]
+pub use egui_epistemic::{
+    EguiAuthoredContinuityAssessment, EguiAuthoredContinuityStatus, assess_authored_continuity,
 };
 #[cfg(feature = "egui")]
 pub use egui_frame_probe::{EguiCorrelatedCapture, EguiFrameEvidence, EguiFrameProbe};
