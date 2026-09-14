@@ -124,8 +124,8 @@ relations: []
         "view version=\"0\" source=\"egui\" viewport=[100,50,1] frame=9\n",
         "node id=\"ak:1\" role=\"button\" name=\"Apply\" bounds=[10,10,20,10]\n",
         "authored-object index=0 id=\"canvas:node\" role=\"diagram_node\" name=\"Node\" semantic_evidence=\"intended\" binding_count=2\n",
-        "authored-binding object_index=0 binding_index=0 object_id=\"canvas:node\" authored_binding_id=\"outline\" binding_evidence=\"observed\" layer_order=\"background\" layer_id=42 shape_index=3 verified=true kind=\"rect\" bounds=[20,20,30,20] clip=unbounded visible_fraction=1 visible_fraction_evidence=derived_bbox_clip visible_bounds=[20,20,30,20]\n",
-        "authored-binding object_index=0 binding_index=1 object_id=\"canvas:node\" binding_evidence=\"observed\" layer_order=\"background\" layer_id=42 shape_index=4 verified=true kind=\"circle\" bounds=[30,20,20,20] clip=[30,20,10,20] visible_fraction=0.5 visible_fraction_evidence=derived_bbox_clip visible_bounds=[30,20,10,20]\n",
+        "authored-binding object_index=0 binding_index=0 object_id=\"canvas:node\" authored_binding_id=\"outline\" binding_evidence=\"observed\" layer_order=\"background\" layer_id=42 shape_index=3 verified=true evidence_consistency=\"consistent\" kind=\"rect\" bounds=[20,20,30,20] clip=unbounded visible_fraction=1 visible_fraction_evidence=derived_bbox_clip visible_bounds=[20,20,30,20]\n",
+        "authored-binding object_index=0 binding_index=1 object_id=\"canvas:node\" binding_evidence=\"observed\" layer_order=\"background\" layer_id=42 shape_index=4 verified=true evidence_consistency=\"consistent\" kind=\"circle\" bounds=[30,20,20,20] clip=[30,20,10,20] visible_fraction=0.5 visible_fraction_evidence=derived_bbox_clip visible_bounds=[30,20,10,20]\n",
         "paint order=1 kind=\"circle\" bounds=[0,0,10,10] clip=[0,0,5,10] visible_fraction=0.5 visible_fraction_evidence=derived_bbox_clip visible_bounds=[0,0,5,10]\n",
         "paint order=2 kind=\"rect\" bounds=[0,0,10,10] clip=unbounded visible_fraction=1 visible_fraction_evidence=derived_bbox_clip visible_bounds=[0,0,10,10]\n",
     );
@@ -135,6 +135,95 @@ relations: []
         !text.contains("node_paint") && !text.contains("paint_node"),
         "projection must not imply an AccessKit-node to paint-shape mapping"
     );
+}
+
+#[test]
+fn unresolved_and_contradictory_bindings_surface_uncertainty_in_agent_text() {
+    let witness = from_yaml(
+        r#"
+viewwitness_version: "0"
+capture:
+  source: egui
+  viewport:
+    width: 10.0
+    height: 10.0
+    scale_factor: 1.0
+nodes: []
+relations: []
+"#,
+    )
+    .expect("parse semantic witness");
+
+    let capture = EguiCorrelatedCapture {
+        request_id: 3,
+        viewport_id: 1,
+        pass_nr: 4,
+        viewport_rect: Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 10.0,
+            height: 10.0,
+        },
+        witness,
+        paint: vec![],
+        authored_objects: vec![EguiAuthoredPaintObject {
+            id: "canvas:uncertain".into(),
+            role: "diagram_node".into(),
+            name: None,
+            semantic_evidence: "intended".into(),
+            bindings: vec![
+                EguiAuthoredPaintBinding {
+                    authored_binding_id: Some("missing".into()),
+                    binding_evidence: "observed".into(),
+                    layer_order: EguiLayerOrder::Background,
+                    layer_id: 1,
+                    shape_index: 99,
+                    verified_at_end_pass: false,
+                    kind: None,
+                    bounds: None,
+                    clip_rect: None,
+                },
+                EguiAuthoredPaintBinding {
+                    authored_binding_id: Some("contradictory".into()),
+                    binding_evidence: "observed".into(),
+                    layer_order: EguiLayerOrder::Background,
+                    layer_id: 1,
+                    shape_index: 3,
+                    verified_at_end_pass: false,
+                    kind: Some(EguiPaintKind::Circle),
+                    bounds: Some(Rect {
+                        x: 1.0,
+                        y: 1.0,
+                        width: 2.0,
+                        height: 2.0,
+                    }),
+                    clip_rect: None,
+                },
+            ],
+        }],
+    };
+
+    let text = correlated_capture_to_agent_text(&capture);
+    let missing = text
+        .lines()
+        .find(|line| line.contains("authored_binding_id=\"missing\""))
+        .expect("missing binding line");
+    assert!(missing.contains("verified=false"));
+    assert!(missing.contains("evidence_consistency=\"consistent\""));
+    assert!(missing.contains("clip=unknown"));
+    assert!(missing.contains("visible_fraction=unknown"));
+    assert!(missing.contains("visible_bounds=unknown"));
+
+    let contradictory = text
+        .lines()
+        .find(|line| line.contains("authored_binding_id=\"contradictory\""))
+        .expect("contradictory binding line");
+    assert!(contradictory.contains("evidence_consistency=\"contradictory\""));
+    assert!(contradictory.contains(
+        "evidence_conflicts=[\"unverified_with_kind\",\"unverified_with_bounds\"]"
+    ));
+    assert!(contradictory.contains("visible_fraction=unknown"));
+    assert!(!contradictory.contains("visible_fraction=1"));
 }
 
 #[test]

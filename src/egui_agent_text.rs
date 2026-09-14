@@ -4,7 +4,8 @@ use serde::Serialize;
 
 use crate::{
     EguiAuthoredBindingChange, EguiAuthoredBindingDelta, EguiAuthoredPaintBinding,
-    EguiAuthoredPaintObject, EguiCorrelatedCapture, EguiCorrelatedDiff, Rect, diff_to_agent_text,
+    EguiAuthoredPaintObject, EguiCorrelatedCapture, EguiCorrelatedDiff, Rect,
+    assess_authored_binding_consistency, assess_authored_binding_visibility, diff_to_agent_text,
     to_agent_text,
 };
 
@@ -304,6 +305,9 @@ fn write_capture_binding(
     object_id: &str,
     binding: &EguiAuthoredPaintBinding,
 ) {
+    let consistency = assess_authored_binding_consistency(binding);
+    let visibility = assess_authored_binding_visibility(binding);
+
     write!(
         output,
         "authored-binding object_index={} binding_index={} object_id={}",
@@ -318,38 +322,56 @@ fn write_capture_binding(
     }
     write!(
         output,
-        " binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
+        " binding_evidence={} layer_order={} layer_id={} shape_index={} verified={} evidence_consistency={}",
         json(&binding.binding_evidence),
         json(&binding.layer_order),
         binding.layer_id,
         binding.shape_index,
         binding.verified_at_end_pass,
+        json(&consistency.status),
     )
     .expect("writing to String cannot fail");
+    if !consistency.conflicts.is_empty() {
+        write!(output, " evidence_conflicts={}", json(&consistency.conflicts))
+            .expect("writing to String cannot fail");
+    }
     if let Some(kind) = binding.kind {
         write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");
     }
     if let Some(bounds) = binding.bounds {
         write!(output, " bounds={}", rect(bounds)).expect("writing to String cannot fail");
     }
-    match binding.clip_rect {
-        Some(clip) => write!(output, " clip={}", rect(clip)),
-        None => write!(output, " clip=unbounded"),
-    }
-    .expect("writing to String cannot fail");
-
-    if binding.bounds.is_some() {
-        write!(
-            output,
-            " visible_fraction={} visible_fraction_evidence=derived_bbox_clip",
-            binding.visible_fraction(),
-        )
+    if !binding.verified_at_end_pass && binding.clip_rect.is_none() {
+        write!(output, " clip=unknown").expect("writing to String cannot fail");
+    } else {
+        match binding.clip_rect {
+            Some(clip) => write!(output, " clip={}", rect(clip)),
+            None => write!(output, " clip=unbounded"),
+        }
         .expect("writing to String cannot fail");
-        if let Some(visible) = binding.visible_bounds() {
-            write!(output, " visible_bounds={}", rect(visible))
-                .expect("writing to String cannot fail");
-        } else {
-            write!(output, " visible_bounds=none").expect("writing to String cannot fail");
+    }
+
+    match visibility.visible_fraction {
+        Some(fraction) => {
+            write!(
+                output,
+                " visible_fraction={} visible_fraction_evidence=derived_bbox_clip",
+                fraction,
+            )
+            .expect("writing to String cannot fail");
+            if let Some(visible) = binding.visible_bounds() {
+                write!(output, " visible_bounds={}", rect(visible))
+                    .expect("writing to String cannot fail");
+            } else {
+                write!(output, " visible_bounds=none").expect("writing to String cannot fail");
+            }
+        }
+        None => {
+            write!(
+                output,
+                " visible_fraction=unknown visible_fraction_evidence=unavailable visible_bounds=unknown",
+            )
+            .expect("writing to String cannot fail");
         }
     }
     output.push('\n');
@@ -373,6 +395,7 @@ fn write_authored_delta(output: &mut String, prefix: &str, object: &EguiAuthored
 
 fn write_binding_delta(output: &mut String, prefix: &str, delta: &EguiAuthoredBindingDelta) {
     let binding = &delta.binding;
+    let consistency = assess_authored_binding_consistency(binding);
     write!(
         output,
         "{prefix} object_id={} binding_ordinal={}",
@@ -386,25 +409,34 @@ fn write_binding_delta(output: &mut String, prefix: &str, delta: &EguiAuthoredBi
     }
     write!(
         output,
-        " binding_evidence={} layer_order={} layer_id={} shape_index={} verified={}",
+        " binding_evidence={} layer_order={} layer_id={} shape_index={} verified={} evidence_consistency={}",
         json(&binding.binding_evidence),
         json(&binding.layer_order),
         binding.layer_id,
         binding.shape_index,
         binding.verified_at_end_pass,
+        json(&consistency.status),
     )
     .expect("writing to String cannot fail");
+    if !consistency.conflicts.is_empty() {
+        write!(output, " evidence_conflicts={}", json(&consistency.conflicts))
+            .expect("writing to String cannot fail");
+    }
     if let Some(kind) = binding.kind {
         write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");
     }
     if let Some(bounds) = binding.bounds {
         write!(output, " bounds={}", rect(bounds)).expect("writing to String cannot fail");
     }
-    match binding.clip_rect {
-        Some(clip) => write!(output, " clip={}", rect(clip)),
-        None => write!(output, " clip=unbounded"),
+    if !binding.verified_at_end_pass && binding.clip_rect.is_none() {
+        write!(output, " clip=unknown").expect("writing to String cannot fail");
+    } else {
+        match binding.clip_rect {
+            Some(clip) => write!(output, " clip={}", rect(clip)),
+            None => write!(output, " clip=unbounded"),
+        }
+        .expect("writing to String cannot fail");
     }
-    .expect("writing to String cannot fail");
     output.push('\n');
 }
 
