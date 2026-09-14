@@ -2,6 +2,8 @@
 
 Status: **Stage E accepted**
 
+This record supersedes the historical `m5-stage-e-arena.md` status line that correctly said Stage E was not yet accepted at the time the arena itself was validated.
+
 Accepted task kind: `handle`
 
 Sanitized task source head: `1a526beb26aa97e800fa32b481861d351410abde`
