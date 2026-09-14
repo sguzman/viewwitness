@@ -32,9 +32,14 @@ fn diff_exact_reports_shape_index_churn_as_non_material() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).expect("stdout utf8");
-    assert!(stdout.starts_with(
-        "egui-diff before_request=1 after_request=2 before_pass=9 after_pass=10 materially_empty=true\n"
+    let header = stdout.lines().next().expect("diff header");
+    assert!(header.starts_with(
+        "egui-diff before_request=1 after_request=2 before_pass=9 after_pass=10 materially_empty=true"
     ));
+    assert!(header.contains("authored_continuity=\"no_known_ambiguity\""));
+    assert!(header.contains("unique_attribution_blocked=false"));
+    assert!(header.contains("object_ambiguity_count=0"));
+    assert!(header.contains("binding_ambiguity_count=0"));
     assert!(stdout.contains(
         "authored-handle-churn id=\"canvas:node\" binding_ordinal=0 before_shape_index=3 after_shape_index=4 material=false continuity=frame_local_structure_sensitive"
     ));
