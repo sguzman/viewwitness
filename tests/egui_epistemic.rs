@@ -51,6 +51,14 @@ fn no_known_ambiguity_does_not_overclaim_evidence_completeness() {
 fn unresolved_binding_visibility_is_unknown_not_zero() {
     let unresolved = authored_binding(false, None, None, None);
 
+    // Pure absence is incomplete testimony, not contradictory testimony.
+    let consistency = assess_authored_binding_consistency(&unresolved);
+    assert_eq!(
+        consistency.status,
+        EguiAuthoredBindingConsistencyStatus::Consistent
+    );
+    assert!(consistency.conflicts.is_empty());
+
     // The low-level geometry helper has historically returned zero when there
     // is no resolved geometry. The epistemic assessment must not promote that
     // mechanical value into an observation that the binding is invisible.
@@ -143,6 +151,33 @@ fn verified_without_kind_is_explicit_contradiction_and_blocks_visibility_claim()
     assert!(consistency.contradictory());
 
     let visibility = assess_authored_binding_visibility(&contradictory);
+    assert_eq!(
+        visibility.resolution,
+        EguiAuthoredBindingResolutionStatus::Contradictory
+    );
+    assert_eq!(visibility.visible_fraction, None);
+    assert!(!visibility.visibility_known());
+}
+
+#[test]
+fn contradiction_is_not_softened_by_other_missing_testimony() {
+    let contradictory_but_geometry_absent =
+        authored_binding(false, Some(EguiPaintKind::Circle), None, None);
+
+    // The final kind claim conflicts with `verified_at_end_pass=false`. Missing
+    // bounds/clip are merely absent and must not either erase that contradiction
+    // or become extra conflicts of their own.
+    let consistency = assess_authored_binding_consistency(&contradictory_but_geometry_absent);
+    assert_eq!(
+        consistency.status,
+        EguiAuthoredBindingConsistencyStatus::Contradictory
+    );
+    assert_eq!(
+        consistency.conflicts,
+        vec![EguiAuthoredBindingConflictKind::UnverifiedWithKind]
+    );
+
+    let visibility = assess_authored_binding_visibility(&contradictory_but_geometry_absent);
     assert_eq!(
         visibility.resolution,
         EguiAuthoredBindingResolutionStatus::Contradictory
