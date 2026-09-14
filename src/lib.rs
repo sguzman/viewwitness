@@ -14,6 +14,8 @@ mod egui_capture_transport;
 #[cfg(feature = "egui")]
 mod egui_diff;
 #[cfg(feature = "egui")]
+mod egui_diff_agent_text;
+#[cfg(feature = "egui")]
 mod egui_epistemic;
 #[cfg(feature = "egui")]
 mod egui_frame_probe;
@@ -36,7 +38,6 @@ pub use diff::{FieldChange, NodeChange, ViewportChange, WitnessDiff, diff_witnes
 #[cfg(feature = "egui")]
 pub use egui_agent_text::{
     correlated_capture_authored_focus_to_agent_text, correlated_capture_to_agent_text,
-    correlated_diff_to_agent_text,
 };
 #[cfg(feature = "egui")]
 pub use egui_capture::{
@@ -53,6 +54,8 @@ pub use egui_diff::{
     EguiAuthoredDiff, EguiAuthoredExecutionHandleChange, EguiAuthoredIdAmbiguity,
     EguiAuthoredObjectChange, EguiCorrelatedDiff, diff_correlated_captures,
 };
+#[cfg(feature = "egui")]
+pub use egui_diff_agent_text::correlated_diff_to_agent_text;
 #[cfg(feature = "egui")]
 pub use egui_epistemic::{
     EguiAuthoredBindingConflictKind, EguiAuthoredBindingConsistencyAssessment,
