@@ -268,21 +268,90 @@ This is the first run that satisfies the Stage-E inference boundary rather than 
 
 Canonical acceptance provenance lives in `docs/acceptance/m5-stage-e-agent-repair.md`.
 
+## Stage F multi-defect independent-agent acceptance
+
+**Accepted.**
+
+Stage F preserves the Stage-E blind handoff and trusted-verifier topology while requiring independent-agent success across more than one defect class/task kind.
+
+The second independent specimen used the already-validated `clip` task. Codex again received only a sanitized task package containing ordinary buildable source plus ViewWitness broken evidence. It did not receive project history, tests, docs, scripts, prompts, CI, verifier implementation, reference-control output, or the known clipping repair.
+
+Candidate patch SHA-256:
+
+```text
+d891febd5a2202e6cba2c3470f41b0dba308c74b82d4d2d3d6219f07a1394394
+```
+
+The candidate crossed the unchanged trusted gate with task kind `clip`. The gate again accepted only:
+
+```text
+examples/showcase.rs
+```
+
+and reconstructed the candidate in a fresh detached worktree before trusted observation and verification.
+
+Trusted GitHub Actions run `34849119878`, job `103992277586`, accepted the rebuilt candidate from live exact evidence:
+
+```text
+baseline center bounds:           [639,321,8,8]
+candidate center bounds:          [639,321,8,8]
+baseline center visible_fraction: 0
+candidate center visible_fraction:1
+baseline center clip:             [238,100,0,0]
+candidate center clip:            [238,100,554,360]
+ring bounds:                      [590,272,106,106] unchanged
+correlation:                      same_full_output
+```
+
+The exact authored diff contained one intended material change:
+
+```text
+authored-binding-change object_id="showcase:painted-circle" authored_binding_id="center" field="clip_rect"
+```
+
+Center kind and geometry remained stable, the sibling ring remained materially stable, no extra authored-binding material change or ambiguity was introduced, and the center became fully visible.
+
+The trusted verifier emitted:
+
+```text
+M5 independent clip verifier accepted candidate: center became fully visible, center_bounds=(639.0, 321.0, 8.0, 8.0), ring unchanged
+M5 mutation-free clipped-center candidate verification succeeded
+M5 trusted agent-patch verification succeeded: kind=clip
+```
+
+Preserved artifact:
+
+```text
+name:       m5-stage-f-codex-clip-verification
+artifact:   10348969634
+size:       16,561 bytes
+sha256:     cf2b2e08e2f9b1517c08f53fae65306561efd56157fa43d696a31ed99cbb059e
+```
+
+Together with the accepted Stage-E handle run, the same independent-agent protocol has now succeeded across two qualitatively different defect classes:
+
+```text
+geometry / placement   -> handle.bounds
+clipping / visibility  -> center.clip_rect
+```
+
+Canonical Stage-F provenance lives in `docs/acceptance/m5-stage-f-multi-defect-agent-repair.md`.
+
 ## Acceptance stages
 
 M5 progression is cumulative:
 
 ```text
-Stage A  capture/diff semantics                       accepted
-Stage B  harness-controlled source edit               accepted
-Stage C  two qualitatively different repair classes  accepted
-Stage D  patcher/verifier separation                  accepted
-Stage E  coding agent locates source + chooses patch  accepted
-Stage F  multiple agent-solved defect classes/tasks   current
-Stage G  incomplete/ambiguous evidence pressure
+Stage A  capture/diff semantics                         accepted
+Stage B  harness-controlled source edit                 accepted
+Stage C  two qualitatively different repair classes    accepted
+Stage D  patcher/verifier separation                    accepted
+Stage E  coding agent locates source + chooses patch    accepted
+Stage F  multiple agent-solved defect classes/tasks     accepted
+Stage G  incomplete/contradictory/ambiguous evidence    current
 ```
 
-Stage F must preserve the same blind handoff and trusted-verifier topology while succeeding on more than one defect class/task kind. The natural next specimen is the already-validated `clip` task: the independent coding agent must repair visibility/clipping while center geometry and sibling ring evidence remain stable.
+Stage G must preserve the evidence/provenance guarantees established earlier while deliberately weakening or conflicting the evidence available to the consumer. Success is not “the agent guesses right.” Success is that ViewWitness exposes uncertainty and the consuming workflow refuses to invent unsupported continuity, linkage, or repair certainty.
 
 Later stages must not weaken the evidence/provenance guarantees established earlier.
 
@@ -297,3 +366,7 @@ For Stage E and later:
 And the candidate must not own its judge:
 
 **Agent-authored application changes are reconstructed inside a fresh candidate tree while observation and acceptance execute from trusted code outside that mutation surface.**
+
+For Stage G and later:
+
+**When available evidence does not support a unique claim, ambiguity or uncertainty must remain explicit rather than being collapsed into a guessed fact.**
