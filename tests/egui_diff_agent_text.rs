@@ -45,9 +45,14 @@ fn correlated_diff_text_separates_ambiguity_and_non_material_handle_churn() {
     };
 
     let text = correlated_diff_to_agent_text(&diff);
-    assert!(text.starts_with(
-        "egui-diff before_request=7 after_request=8 before_pass=9 after_pass=10 materially_empty=false\n"
+    let header = text.lines().next().expect("diff header");
+    assert!(header.starts_with(
+        "egui-diff before_request=7 after_request=8 before_pass=9 after_pass=10 materially_empty=false"
     ));
+    assert!(header.contains("authored_continuity=\"ambiguous\""));
+    assert!(header.contains("unique_attribution_blocked=true"));
+    assert!(header.contains("object_ambiguity_count=1"));
+    assert!(header.contains("binding_ambiguity_count=1"));
     assert!(text.contains(
         "authored-ambiguity id=\"duplicate\" before_count=2 after_count=1 matching=refused"
     ));
@@ -141,12 +146,10 @@ fn unkeyed_handle_churn_keeps_legacy_projection_and_is_materially_empty() {
     };
 
     let text = correlated_diff_to_agent_text(&diff);
-    assert!(
-        text.lines()
-            .next()
-            .unwrap()
-            .ends_with("materially_empty=true")
-    );
+    let header = text.lines().next().expect("diff header");
+    assert!(header.contains("materially_empty=true"));
+    assert!(header.contains("authored_continuity=\"no_known_ambiguity\""));
+    assert!(header.contains("unique_attribution_blocked=false"));
     assert!(text.contains(
         "authored-handle-churn id=\"canvas:stable\" binding_ordinal=0 before_shape_index=8 after_shape_index=9 material=false"
     ));
