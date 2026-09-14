@@ -43,9 +43,7 @@ impl EguiAuthoredContinuityAssessment {
 /// pressure may add other orthogonal epistemic assessments without weakening
 /// this narrow identity rule.
 #[must_use]
-pub fn assess_authored_continuity(
-    diff: &EguiCorrelatedDiff,
-) -> EguiAuthoredContinuityAssessment {
+pub fn assess_authored_continuity(diff: &EguiCorrelatedDiff) -> EguiAuthoredContinuityAssessment {
     let object_ambiguity_count = diff.authored.ambiguous_ids.len();
     let binding_ambiguity_count = diff.authored.binding_ambiguities.len();
     let status = if object_ambiguity_count == 0 && binding_ambiguity_count == 0 {
