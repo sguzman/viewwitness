@@ -173,7 +173,7 @@ The focused header retains request/pass/viewport correlation metadata, reports o
 
 ## M5 — agent verification loop
 
-**Stages A–D accepted. Stage-E agent arena dual-task validated. Real agent-produced repair pending.**
+**Stages A–E accepted. Stage F is current.**
 
 The durable target loop is:
 
@@ -223,9 +223,9 @@ Canonical Stage-D provenance lives in `docs/acceptance/m5-separated-patcher-veri
 
 ### Stage E — recipe-free coding-agent boundary
 
-**Dual-task arena validated; Stage E itself remains open.**
+**Accepted.**
 
-Stage E removes the repair recipe from the coding-agent side as well. There are now two recipe-free task surfaces:
+Stage E removes the repair recipe from the coding-agent side as well. There are two recipe-free task surfaces:
 
 ```text
 handle
@@ -268,40 +268,67 @@ agent.patch + explicit task kind
 
 For the current experiment the candidate mutation surface is restricted to `examples/*.rs`, keeping ViewWitness implementation, tests, CI, task text, and verifier outside agent authority.
 
-The code-bearing dual-task integration is validated at `1a526beb26aa97e800fa32b481861d351410abde`. Native M5 run `34725470386` passed both mutation-free baselines, both sanitized-workspace builds, and both trusted clean-worktree control gates. The handle control was accepted from geometry evidence. The clip control was accepted from a `visible_fraction` transition from `0` to `1` with center bounds and sibling ring evidence stable.
+The dual-task arena was validated at code-bearing head `1a526beb26aa97e800fa32b481861d351410abde`. Native M5 run `34725470386` passed both mutation-free baselines, both sanitized-workspace builds, and both trusted clean-worktree control gates. The handle control was accepted from geometry evidence. The clip control was accepted from a `visible_fraction` transition from `0` to `1` with center bounds and sibling ring evidence stable.
 
-The post-integration test head `4cd6bbfc64733c9077c9b0652ec49607375ba559` passed ordinary formatting, default tests, and all-features CI in run `34725563814`.
+Stage E was then completed by a genuine blinded coding-agent handoff. Codex received only the sanitized `handle` task package: ordinary buildable source plus ViewWitness broken evidence, with tests, docs, scripts, prompts, CI, verifier code, reference-control output, and original Git history excluded. It independently emitted a candidate patch.
 
-That distinction remains load-bearing: **known-good controls passing the Stage-E gate validate the arena, not Stage-E agent inference.**
+The returned patch had SHA-256:
 
-Canonical arena provenance lives in `docs/acceptance/m5-stage-e-arena.md`. The trust contract lives in `docs/agent-patch-contract.md`.
+```text
+2df25897244a5a9ef49fd62f3301f12756632542e4700e26b83f8495a45a4bc3
+```
+
+Trusted native verification run `34845296759` passed the existing Stage-E gate without changing the application source or verifier contract. The gate accepted only `examples/showcase.rs`, reconstructed the candidate in a fresh detached worktree, rebuilt it, recaptured exact evidence with the trusted ViewWitness CLI, and invoked the mutation-free handle verifier.
+
+The accepted evidence was:
+
+```text
+baseline handle:  [513,215,10,10]
+candidate handle: [453,215,10,10]
+outline:          [307,169,152,102] unchanged
+```
+
+`diff-exact` reported exactly the intended authored `handle.bounds` material change, while handle y/size and the outline remained stable. The trusted verifier emitted both `M5 mutation-free candidate verification succeeded` and `M5 trusted agent-patch verification succeeded: kind=handle`.
+
+Preserved evidence:
+
+```text
+run:          34845296759
+artifact:     m5-stage-e-codex-handle-verification
+artifact id:  10347108708
+size:         16,610 bytes
+artifact sha: c2517c9dbe77be4a2d4a0de7e64870764ddcb277af8ca859692b38d08de3dc9e
+```
+
+Canonical Stage-E acceptance provenance lives in `docs/acceptance/m5-stage-e-agent-repair.md`. The earlier arena-validation provenance remains in `docs/acceptance/m5-stage-e-arena.md`. The trust contract lives in `docs/agent-patch-contract.md`.
 
 A native pressure run also showed why acceptance must remain epistemically scoped: AccessKit debug-inspector nodes can reflow across process restarts because generated identity/layout is structure-sensitive. Those canonical semantic diffs remain preserved evidence, but they are not promoted into a blanket collateral-change veto for an authored custom-paint repair whose stronger continuity source is its explicit authored object/binding identity.
 
-### Next M5 pressure
+### Next M5 pressure — Stage F
 
-The missing step is now singular: put an **actual coding agent** inside the already-validated arena.
+Stage F now asks whether the same independent-agent protocol generalizes across defect classes rather than succeeding only once.
+
+The natural next specimen is the already-prepared `clip` task:
 
 ```text
-real coding agent
-    receives one sanitized Stage-E package
+independent coding agent
+    receives sanitized clipping task
     -> reads ViewWitness evidence
     -> inspects ordinary source
-    -> locates responsible code itself
+    -> locates clipping responsibility itself
     -> chooses and emits its own patch
-    -> trusted task-specific gate reconstructs and verifies candidate
+    -> trusted clip gate reconstructs and verifies candidate
 ```
 
-Only successful completion of that experiment promotes Stage E from `current` to `accepted`.
+Stage F becomes accepted only when independently chosen agent repairs have succeeded across more than one task kind/defect class. The clipping case is deliberately different from the accepted handle geometry case: center geometry must remain stable while clipping/visibility changes from fully invisible to fully visible and the sibling ring remains materially stable.
 
-After that, pressure generality rather than adding more control scripts:
+After Stage F:
 
 ```text
-Stage F  same independent-agent protocol succeeds across multiple defect classes/tasks
 Stage G  incomplete, contradictory, or ambiguous evidence pressure
 ```
 
-Stage F should require successful independently chosen repairs for more than one task kind so success cannot degrade into memorizing one source idiom. Stage G should deliberately pressure disagreement or incompleteness among semantic, authored-paint, geometry, and raster evidence and require uncertainty to remain visible rather than guessed away.
+Stage G should deliberately pressure disagreement or incompleteness among semantic, authored-paint, geometry, and raster evidence and require uncertainty to remain visible rather than guessed away.
 
 MCP remains a plausible integration surface later, but the canonical model and verification architecture must remain independent of MCP. Observation and control stay conceptually separate; ViewWitness must remain useful without mutation authority.
 
@@ -333,6 +360,6 @@ Architecture, ontology, format design, example design, review, and integration r
 
 Good bounded delegation surfaces include repetitive mappings, showcase gallery expansion after acceptance cases are fixed, CLI polish after behavior is established, and mechanical protocol/tooling work.
 
-A real Stage-E run is now the strongest Codex delegation surface precisely because the trust boundary is external to the coding agent: Codex may own the repair hypothesis, while ViewWitness retains independent observation and acceptance authority.
+Stage E established a stronger bounded use: a coding agent may own a repair hypothesis inside a blinded task package while ViewWitness retains independent observation and acceptance authority. That does not transfer architectural ownership to the agent.
 
-The director should continue implementing small semantic slices directly when that helps establish the contract. Codex multiplies mechanical throughput; it does not inherit architectural authority.
+Stage F should reuse that exact trust topology rather than broadening Codex authority: the agent gets another bounded defect specimen; the director and trusted verifier still own the evidence contract and acceptance decision.
