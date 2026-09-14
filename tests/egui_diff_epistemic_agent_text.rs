@@ -47,14 +47,8 @@ fn diff_header_preserves_material_change_and_blocks_ambiguous_attribution() {
 
 #[test]
 fn diff_header_does_not_promote_no_known_ambiguity_to_completeness() {
-    let before = capture(
-        1,
-        vec![object("stable", "stable", EguiPaintKind::Rect)],
-    );
-    let after = capture(
-        2,
-        vec![object("stable", "stable", EguiPaintKind::Circle)],
-    );
+    let before = capture(1, vec![object("stable", "stable", EguiPaintKind::Rect)]);
+    let after = capture(2, vec![object("stable", "stable", EguiPaintKind::Circle)]);
 
     let diff = diff_correlated_captures(&before, &after);
     let text = correlated_diff_to_agent_text(&diff);
