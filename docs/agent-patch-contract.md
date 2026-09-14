@@ -180,11 +180,11 @@ reference patcher output
 
 The coding agent must discover the responsible source itself, choose its own repair, and emit a candidate patch for the independent verifier.
 
-The reference/control patches remain useful only to prove transport, reconstruction, and verifier behavior. They are not evidence of Stage-E completion.
+The reference/control patches remain useful only to prove transport, reconstruction, and verifier behavior. They are not evidence of autonomous agent inference.
 
 ## Stage E arena validation
 
-The infrastructure needed for a genuine Stage-E experiment is now validated against both task kinds.
+The infrastructure needed for a genuine Stage-E experiment was validated against both task kinds before any coding-agent acceptance claim was made.
 
 The sanitized agent package is built from committed broken `HEAD`, not a dirty patcher checkout. It contains buildable Cargo metadata plus `src/` and `examples/`, with the selected task/evidence beside the workspace, while historical tests, docs, scripts, prompts, CI, and verifier machinery are absent. This prevents the agent from reading previous repair answers out of acceptance history.
 
@@ -204,11 +204,69 @@ receive explicit task kind: handle | clip
 
 The code-bearing dual-task integration head is `1a526beb26aa97e800fa32b481861d351410abde`. Native `M5 Live Source Repair` run `34725470386` passed both recipe-free sandbox builds and both trusted clean-worktree control gates. The handle control was accepted from geometry evidence; the clip control was accepted from clipping/visibility evidence while center geometry and sibling ring evidence remained stable.
 
-The current post-contract-test head `4cd6bbfc64733c9077c9b0652ec49607375ba559` also passed ordinary format/default/all-features CI in run `34725563814`.
+The post-contract-test head `4cd6bbfc64733c9077c9b0652ec49607375ba559` also passed ordinary format/default/all-features CI in run `34725563814`.
 
-That closes the previous one-defect pressure on the **arena and verifier topology**. It does not accept Stage E itself: the successful patches in the native workflow were known-good controls rather than independently chosen coding-agent repairs.
+Those runs validated the arena and verifier topology only. They deliberately did not count as Stage-E completion because the patches were known-good controls.
 
-Canonical arena provenance lives in `docs/acceptance/m5-stage-e-arena.md`.
+Historical arena provenance lives in `docs/acceptance/m5-stage-e-arena.md`.
+
+## Stage E independent-agent acceptance
+
+**Accepted.**
+
+A real Codex session received only the sanitized `handle` package. It did not receive the original ViewWitness Git history, tests, docs, scripts, prompts, CI, verifier machinery, reference-control output, or the known repair recipe. It inspected the ordinary source and supplied ViewWitness evidence and emitted its own `agent.patch`.
+
+Candidate patch SHA-256:
+
+```text
+2df25897244a5a9ef49fd62f3301f12756632542e4700e26b83f8495a45a4bc3
+```
+
+The patch then crossed the pre-existing trusted Stage-E gate. The gate accepted only:
+
+```text
+examples/showcase.rs
+```
+
+and reconstructed the candidate in a fresh detached worktree. Observation and acceptance remained in trusted code outside the candidate mutation surface.
+
+Trusted GitHub Actions verification run `34845296759`, job `103979649037`, rebuilt the candidate and accepted it from live exact evidence:
+
+```text
+baseline handle:  [513,215,10,10]
+candidate handle: [453,215,10,10]
+outline:          [307,169,152,102] unchanged
+correlation:      same_full_output
+```
+
+The exact authored diff contained one intended material change:
+
+```text
+authored-binding-change object_id="showcase:painted-rectangle" authored_binding_id="handle" field="bounds"
+```
+
+Handle y-position and size remained stable, the outline remained stable, no extra authored-binding material change or ambiguity was introduced, and the handle geometrically reconnected.
+
+The trusted verifier emitted:
+
+```text
+M5 independent verifier accepted candidate: handle reconnected, outline unchanged
+M5 mutation-free candidate verification succeeded
+M5 trusted agent-patch verification succeeded: kind=handle
+```
+
+Preserved artifact:
+
+```text
+name:       m5-stage-e-codex-handle-verification
+artifact:   10347108708
+size:       16,610 bytes
+sha256:     c2517c9dbe77be4a2d4a0de7e64870764ddcb277af8ca859692b38d08de3dc9e
+```
+
+This is the first run that satisfies the Stage-E inference boundary rather than merely exercising it with a reference control.
+
+Canonical acceptance provenance lives in `docs/acceptance/m5-stage-e-agent-repair.md`.
 
 ## Acceptance stages
 
@@ -219,14 +277,12 @@ Stage A  capture/diff semantics                       accepted
 Stage B  harness-controlled source edit               accepted
 Stage C  two qualitatively different repair classes  accepted
 Stage D  patcher/verifier separation                  accepted
-Stage E  coding agent locates source + chooses patch  current
-Stage F  multiple agent-solved defects/tasks
+Stage E  coding agent locates source + chooses patch  accepted
+Stage F  multiple agent-solved defect classes/tasks   current
 Stage G  incomplete/ambiguous evidence pressure
 ```
 
-Stage E becomes accepted only when a real coding agent receives one of the sanitized packages, locates the responsible source from ViewWitness evidence plus ordinary repository inspection, chooses/emits its own patch, and that patch passes the already-validated trusted gate.
-
-Stage F should then require successful independent agent repair across more than one defect class/task kind so the result cannot collapse into one memorized repair idiom.
+Stage F must preserve the same blind handoff and trusted-verifier topology while succeeding on more than one defect class/task kind. The natural next specimen is the already-validated `clip` task: the independent coding agent must repair visibility/clipping while center geometry and sibling ring evidence remain stable.
 
 Later stages must not weaken the evidence/provenance guarantees established earlier.
 
