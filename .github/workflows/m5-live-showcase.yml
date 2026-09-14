@@ -18,6 +18,7 @@ on:
       - "prompts/m5-handle-repair.md"
       - "prompts/m5-clip-repair.md"
       - "examples/showcase.rs"
+      - "tests/m5_epistemic_contract.rs"
       - "src/**"
       - "Cargo.toml"
       - "Cargo.lock"
