@@ -1,10 +1,12 @@
 #![cfg(feature = "egui")]
 
 use viewwitness::{
+    EguiAuthoredBindingConflictKind, EguiAuthoredBindingConsistencyStatus,
     EguiAuthoredBindingIdAmbiguity, EguiAuthoredBindingResolutionStatus,
     EguiAuthoredContinuityStatus, EguiAuthoredDiff, EguiAuthoredIdAmbiguity,
     EguiAuthoredPaintBinding, EguiCorrelatedDiff, EguiLayerOrder, EguiPaintKind, Rect, WitnessDiff,
-    assess_authored_binding_visibility, assess_authored_continuity,
+    assess_authored_binding_consistency, assess_authored_binding_visibility,
+    assess_authored_continuity,
 };
 
 #[test]
@@ -91,6 +93,103 @@ fn verified_zero_visibility_remains_known_zero() {
     );
     assert_eq!(assessment.visible_fraction, Some(0.0));
     assert!(assessment.visibility_known());
+}
+
+#[test]
+fn verified_slot_without_usable_bounds_keeps_visibility_unknown() {
+    let verified_without_bounds = authored_binding(true, Some(EguiPaintKind::Noop), None, None);
+
+    assert_eq!(verified_without_bounds.visible_fraction(), 0.0);
+
+    let consistency = assess_authored_binding_consistency(&verified_without_bounds);
+    assert_eq!(
+        consistency.status,
+        EguiAuthoredBindingConsistencyStatus::Consistent
+    );
+    assert!(consistency.conflicts.is_empty());
+
+    let visibility = assess_authored_binding_visibility(&verified_without_bounds);
+    assert_eq!(
+        visibility.resolution,
+        EguiAuthoredBindingResolutionStatus::Verified
+    );
+    assert_eq!(visibility.visible_fraction, None);
+    assert!(!visibility.visibility_known());
+}
+
+#[test]
+fn verified_without_kind_is_explicit_contradiction_and_blocks_visibility_claim() {
+    let contradictory = authored_binding(
+        true,
+        None,
+        Some(Rect {
+            x: 10.0,
+            y: 10.0,
+            width: 8.0,
+            height: 8.0,
+        }),
+        None,
+    );
+
+    let consistency = assess_authored_binding_consistency(&contradictory);
+    assert_eq!(
+        consistency.status,
+        EguiAuthoredBindingConsistencyStatus::Contradictory
+    );
+    assert_eq!(
+        consistency.conflicts,
+        vec![EguiAuthoredBindingConflictKind::VerifiedWithoutKind]
+    );
+    assert!(consistency.contradictory());
+
+    let visibility = assess_authored_binding_visibility(&contradictory);
+    assert_eq!(
+        visibility.resolution,
+        EguiAuthoredBindingResolutionStatus::Contradictory
+    );
+    assert_eq!(visibility.visible_fraction, None);
+    assert!(!visibility.visibility_known());
+}
+
+#[test]
+fn unverified_slot_with_final_paint_testimony_preserves_all_conflicts() {
+    let contradictory = authored_binding(
+        false,
+        Some(EguiPaintKind::Circle),
+        Some(Rect {
+            x: 10.0,
+            y: 10.0,
+            width: 8.0,
+            height: 8.0,
+        }),
+        Some(Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 100.0,
+        }),
+    );
+
+    let consistency = assess_authored_binding_consistency(&contradictory);
+    assert_eq!(
+        consistency.status,
+        EguiAuthoredBindingConsistencyStatus::Contradictory
+    );
+    assert_eq!(
+        consistency.conflicts,
+        vec![
+            EguiAuthoredBindingConflictKind::UnverifiedWithKind,
+            EguiAuthoredBindingConflictKind::UnverifiedWithBounds,
+            EguiAuthoredBindingConflictKind::UnverifiedWithClipRect,
+        ]
+    );
+
+    let visibility = assess_authored_binding_visibility(&contradictory);
+    assert_eq!(
+        visibility.resolution,
+        EguiAuthoredBindingResolutionStatus::Contradictory
+    );
+    assert_eq!(visibility.visible_fraction, None);
 }
 
 fn diff_with_ambiguity() -> EguiCorrelatedDiff {

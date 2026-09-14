@@ -55,8 +55,10 @@ pub use egui_diff::{
 };
 #[cfg(feature = "egui")]
 pub use egui_epistemic::{
-    EguiAuthoredBindingResolutionStatus, EguiAuthoredBindingVisibilityAssessment,
-    EguiAuthoredContinuityAssessment, EguiAuthoredContinuityStatus,
+    EguiAuthoredBindingConflictKind, EguiAuthoredBindingConsistencyAssessment,
+    EguiAuthoredBindingConsistencyStatus, EguiAuthoredBindingResolutionStatus,
+    EguiAuthoredBindingVisibilityAssessment, EguiAuthoredContinuityAssessment,
+    EguiAuthoredContinuityStatus, assess_authored_binding_consistency,
     assess_authored_binding_visibility, assess_authored_continuity,
 };
 #[cfg(feature = "egui")]
