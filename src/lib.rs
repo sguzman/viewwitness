@@ -55,7 +55,9 @@ pub use egui_diff::{
 };
 #[cfg(feature = "egui")]
 pub use egui_epistemic::{
-    EguiAuthoredContinuityAssessment, EguiAuthoredContinuityStatus, assess_authored_continuity,
+    EguiAuthoredBindingResolutionStatus, EguiAuthoredBindingVisibilityAssessment,
+    EguiAuthoredContinuityAssessment, EguiAuthoredContinuityStatus,
+    assess_authored_binding_visibility, assess_authored_continuity,
 };
 #[cfg(feature = "egui")]
 pub use egui_frame_probe::{EguiCorrelatedCapture, EguiFrameEvidence, EguiFrameProbe};

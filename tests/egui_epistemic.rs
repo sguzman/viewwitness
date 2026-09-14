@@ -1,8 +1,10 @@
 #![cfg(feature = "egui")]
 
 use viewwitness::{
-    EguiAuthoredBindingIdAmbiguity, EguiAuthoredContinuityStatus, EguiAuthoredDiff,
-    EguiAuthoredIdAmbiguity, EguiCorrelatedDiff, WitnessDiff, assess_authored_continuity,
+    EguiAuthoredBindingIdAmbiguity, EguiAuthoredBindingResolutionStatus,
+    EguiAuthoredContinuityStatus, EguiAuthoredDiff, EguiAuthoredIdAmbiguity,
+    EguiAuthoredPaintBinding, EguiCorrelatedDiff, EguiLayerOrder, EguiPaintKind, Rect, WitnessDiff,
+    assess_authored_binding_visibility, assess_authored_continuity,
 };
 
 #[test]
@@ -43,6 +45,54 @@ fn no_known_ambiguity_does_not_overclaim_evidence_completeness() {
     assert!(!assessment.unique_attribution_blocked());
 }
 
+#[test]
+fn unresolved_binding_visibility_is_unknown_not_zero() {
+    let unresolved = authored_binding(false, None, None, None);
+
+    // The low-level geometry helper has historically returned zero when there
+    // is no resolved geometry. The epistemic assessment must not promote that
+    // mechanical value into an observation that the binding is invisible.
+    assert_eq!(unresolved.visible_fraction(), 0.0);
+
+    let assessment = assess_authored_binding_visibility(&unresolved);
+    assert_eq!(
+        assessment.resolution,
+        EguiAuthoredBindingResolutionStatus::Unverified
+    );
+    assert_eq!(assessment.visible_fraction, None);
+    assert!(!assessment.visibility_known());
+}
+
+#[test]
+fn verified_zero_visibility_remains_known_zero() {
+    let verified_clipped = authored_binding(
+        true,
+        Some(EguiPaintKind::Circle),
+        Some(Rect {
+            x: 20.0,
+            y: 20.0,
+            width: 8.0,
+            height: 8.0,
+        }),
+        Some(Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+        }),
+    );
+
+    assert_eq!(verified_clipped.visible_fraction(), 0.0);
+
+    let assessment = assess_authored_binding_visibility(&verified_clipped);
+    assert_eq!(
+        assessment.resolution,
+        EguiAuthoredBindingResolutionStatus::Verified
+    );
+    assert_eq!(assessment.visible_fraction, Some(0.0));
+    assert!(assessment.visibility_known());
+}
+
 fn diff_with_ambiguity() -> EguiCorrelatedDiff {
     EguiCorrelatedDiff {
         before_request_id: 7,
@@ -64,6 +114,25 @@ fn diff_with_ambiguity() -> EguiCorrelatedDiff {
             }],
             ..empty_authored_diff()
         },
+    }
+}
+
+fn authored_binding(
+    verified_at_end_pass: bool,
+    kind: Option<EguiPaintKind>,
+    bounds: Option<Rect>,
+    clip_rect: Option<Rect>,
+) -> EguiAuthoredPaintBinding {
+    EguiAuthoredPaintBinding {
+        authored_binding_id: Some("center".into()),
+        binding_evidence: "observed".into(),
+        layer_order: EguiLayerOrder::Background,
+        layer_id: 42,
+        shape_index: 3,
+        verified_at_end_pass,
+        kind,
+        bounds,
+        clip_rect,
     }
 }
 

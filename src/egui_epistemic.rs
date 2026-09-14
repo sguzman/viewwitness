@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::EguiCorrelatedDiff;
+use crate::{EguiAuthoredPaintBinding, EguiCorrelatedDiff};
 
 /// Narrow epistemic assessment of application-authored cross-frame continuity.
 ///
@@ -35,6 +35,36 @@ impl EguiAuthoredContinuityAssessment {
     }
 }
 
+/// Whether a particular authored paint binding was resolved to final paint
+/// evidence at the end of the captured pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EguiAuthoredBindingResolutionStatus {
+    Verified,
+    Unverified,
+}
+
+/// Visibility testimony for one authored binding with resolution provenance
+/// preserved.
+///
+/// `visible_fraction` is present only when the binding's final paint slot was
+/// actually verified. The fraction is still the existing derived bounding-box
+/// clip measure; this type does not promote it to raster coverage.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EguiAuthoredBindingVisibilityAssessment {
+    pub resolution: EguiAuthoredBindingResolutionStatus,
+    pub visible_fraction: Option<f32>,
+}
+
+impl EguiAuthoredBindingVisibilityAssessment {
+    /// True only when final paint evidence was resolved and visibility can be
+    /// interpreted as observed/derived evidence rather than missing testimony.
+    #[must_use]
+    pub fn visibility_known(&self) -> bool {
+        self.resolution == EguiAuthoredBindingResolutionStatus::Verified
+    }
+}
+
 /// Assess only the authored-identity continuity evidence already present in a
 /// correlated diff.
 ///
@@ -56,5 +86,30 @@ pub fn assess_authored_continuity(diff: &EguiCorrelatedDiff) -> EguiAuthoredCont
         status,
         object_ambiguity_count,
         binding_ambiguity_count,
+    }
+}
+
+/// Interpret authored-binding visibility without collapsing an unresolved paint
+/// handle into a false claim of zero visibility.
+///
+/// `EguiAuthoredPaintBinding::visible_fraction()` mechanically returns `0.0`
+/// when final bounds/clip evidence is unavailable. That remains useful as a
+/// geometry helper, but an unverified binding must not be epistemically treated
+/// as a verified invisible binding. This assessment therefore returns `None` for
+/// unresolved visibility testimony.
+#[must_use]
+pub fn assess_authored_binding_visibility(
+    binding: &EguiAuthoredPaintBinding,
+) -> EguiAuthoredBindingVisibilityAssessment {
+    if binding.verified_at_end_pass {
+        EguiAuthoredBindingVisibilityAssessment {
+            resolution: EguiAuthoredBindingResolutionStatus::Verified,
+            visible_fraction: Some(binding.visible_fraction()),
+        }
+    } else {
+        EguiAuthoredBindingVisibilityAssessment {
+            resolution: EguiAuthoredBindingResolutionStatus::Unverified,
+            visible_fraction: None,
+        }
     }
 }
