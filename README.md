@@ -182,11 +182,13 @@ clipped-center case
   ring bounds:             [590,272,106,106] unchanged
 ```
 
-The later M5 stages deliberately separate **who proposes a repair** from **who judges it**. A mutation-free baseline observer, recipe-free sanitized coding-agent package, trusted fresh-worktree patch gate, and task-specific mutation-free verifier now exist for both `handle` and `clip` task kinds. The coding-agent package excludes historical tests/docs/scripts/prompts/CI/verifier machinery so it cannot read the old answer key, and candidate changes are reconstructed in a detached trusted worktree before live evidence is judged.
+The later M5 stages deliberately separate **who proposes a repair** from **who judges it**. A mutation-free baseline observer, recipe-free sanitized coding-agent package, trusted fresh-worktree patch gate, and task-specific mutation-free verifier exist for both `handle` and `clip` task kinds. The coding-agent package excludes historical tests/docs/scripts/prompts/CI/verifier machinery so it cannot read the old answer key, and candidate changes are reconstructed in a detached trusted worktree before live evidence is judged.
 
-Known-good control patches have passed this entire arena for both defect classes. That validates the transport/trust/verifier topology; it does **not** count as autonomous agent repair. Stage E remains open until a real coding agent receives one of the sanitized packages, locates the responsible source itself, chooses its own patch, and passes the trusted gate.
+Known-good control patches first validated this arena for both defect classes. Stage E was then genuinely accepted when a blinded Codex session received only the sanitized `handle` package, independently chose a source repair, emitted `agent.patch`, and passed the pre-existing trusted handle gate. The verifier observed the handle move from `[513,215,10,10]` to `[453,215,10,10]` while the outline remained exactly `[307,169,152,102]`, with exactly one authored material binding change.
 
-See `docs/acceptance/m5-live-source-repair.md`, `docs/acceptance/m5-live-clipping-repair.md`, `docs/acceptance/m5-stage-e-arena.md`, and `docs/agent-patch-contract.md`.
+The Stage-E acceptance run is `34845296759`; preserved artifact `10347108708` contains the baseline, applied candidate, recapture, diff, and verifier evidence. Stage F is now current: the same blinded independent-agent protocol must succeed on another defect class, naturally the already-prepared `clip` task.
+
+See `docs/acceptance/m5-live-source-repair.md`, `docs/acceptance/m5-live-clipping-repair.md`, `docs/acceptance/m5-stage-e-arena.md`, `docs/acceptance/m5-stage-e-agent-repair.md`, and `docs/agent-patch-contract.md`.
 
 ## Exact external capture protocol
 
@@ -302,12 +304,13 @@ ViewWitness has moved well beyond format-only exploration. The current project h
 - a living eframe showcase with worker-hosted `:5720` and `:5721` services, four guarded keyed Canvas bindings, and deterministic geometry and clipping defects;
 - native Xvfb source-repair controls for both defect classes;
 - mutation-free baseline capture, recipe-free agent packaging, a trusted detached-worktree candidate gate, and task-specific independent verifiers for both Stage-E task kinds;
+- a genuine blinded independent-agent handle repair accepted through the trusted Stage-E gate;
 - external semantic/raster observation through `egui_inspection`;
 - CI over default and all-features builds plus the dedicated native M5 source-repair workflow.
 
 The v0 canonical `Witness` schema is still intentionally provisional. Generic paint and authored-object/binding evidence remain egui-specific rather than being prematurely promoted into the cross-backend model.
 
-The next M5 pressure is now singular: **run a genuine independent coding agent through the validated Stage-E arena**. The agent must receive a sanitized recipe-free package, inspect the ordinary source and ViewWitness evidence, locate the cause itself, choose and emit its own patch, and pass the trusted task-specific verifier. Only then does Stage E become accepted. After that, the same independent-agent protocol should succeed across multiple defect classes before we claim generality. Other open pressure includes safe mapping (if any) from layer-local authored bindings to flattened renderer order, more multi-window/viewport pressure, and stronger raster evidence before any canonical occlusion claim.
+M5 has accepted Stages A–E. The next pressure is **Stage F: repeat the same blinded independent-agent protocol across another defect class**. The natural specimen is `clipped-center`: the agent must infer and repair the clipping/visibility defect while center geometry and the sibling ring remain stable, and the trusted clip verifier—not the agent—must decide success. After that, open pressure includes incomplete/contradictory evidence, safe mapping (if any) from layer-local authored bindings to flattened renderer order, more multi-window/viewport pressure, and stronger raster evidence before any canonical occlusion claim.
 
 ## Non-goals for the first phase
 
