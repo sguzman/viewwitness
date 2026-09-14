@@ -173,7 +173,7 @@ The focused header retains request/pass/viewport correlation metadata, reports o
 
 ## M5 — agent verification loop
 
-**Stages A–E accepted. Stage F is current.**
+**Stages A–F accepted. Stage G is current.**
 
 The durable target loop is:
 
@@ -304,31 +304,65 @@ Canonical Stage-E acceptance provenance lives in `docs/acceptance/m5-stage-e-age
 
 A native pressure run also showed why acceptance must remain epistemically scoped: AccessKit debug-inspector nodes can reflow across process restarts because generated identity/layout is structure-sensitive. Those canonical semantic diffs remain preserved evidence, but they are not promoted into a blanket collateral-change veto for an authored custom-paint repair whose stronger continuity source is its explicit authored object/binding identity.
 
-### Next M5 pressure — Stage F
+### Stage F — multi-defect independent-agent generalization
 
-Stage F now asks whether the same independent-agent protocol generalizes across defect classes rather than succeeding only once.
+**Accepted.**
 
-The natural next specimen is the already-prepared `clip` task:
+Stage F reused the Stage-E topology unchanged against the qualitatively different `clip` task. Codex again received only a sanitized source/evidence package and independently emitted an opaque candidate patch.
 
-```text
-independent coding agent
-    receives sanitized clipping task
-    -> reads ViewWitness evidence
-    -> inspects ordinary source
-    -> locates clipping responsibility itself
-    -> chooses and emits its own patch
-    -> trusted clip gate reconstructs and verifies candidate
-```
-
-Stage F becomes accepted only when independently chosen agent repairs have succeeded across more than one task kind/defect class. The clipping case is deliberately different from the accepted handle geometry case: center geometry must remain stable while clipping/visibility changes from fully invisible to fully visible and the sibling ring remains materially stable.
-
-After Stage F:
+Candidate patch SHA-256:
 
 ```text
-Stage G  incomplete, contradictory, or ambiguous evidence pressure
+d891febd5a2202e6cba2c3470f41b0dba308c74b82d4d2d3d6219f07a1394394
 ```
 
-Stage G should deliberately pressure disagreement or incompleteness among semantic, authored-paint, geometry, and raster evidence and require uncertainty to remain visible rather than guessed away.
+Trusted verification run `34849119878`, job `103992277586`, rebuilt the candidate in a fresh detached worktree and invoked the pre-existing mutation-free clip verifier. The accepted evidence was:
+
+```text
+center bounds:           [639,321,8,8] unchanged
+center visible_fraction: 0 -> 1
+center clip:             [238,100,0,0] -> [238,100,554,360]
+ring bounds:             [590,272,106,106] unchanged
+ring visible_fraction:   1 unchanged
+```
+
+`diff-exact` reported exactly the intended authored `center.clip_rect` material change. Center kind/geometry remained stable, the sibling ring remained materially stable, and exact correlation remained `same_full_output`.
+
+Preserved evidence:
+
+```text
+run:          34849119878
+artifact:     m5-stage-f-codex-clip-verification
+artifact id:  10348969634
+size:         16,561 bytes
+artifact sha: cf2b2e08e2f9b1517c08f53fae65306561efd56157fa43d696a31ed99cbb059e
+```
+
+Together with the accepted Stage-E handle run, Stage F now has independent-agent success across two distinct defect classes:
+
+```text
+geometry / placement   -> handle.bounds
+clipping / visibility  -> center.clip_rect
+```
+
+Canonical Stage-F provenance lives in `docs/acceptance/m5-stage-f-multi-defect-agent-repair.md`.
+
+### Next M5 pressure — Stage G
+
+Stage G moves from cleanly evidenced repair into **epistemic pressure**. The next question is not whether an agent can fix an obvious defect; it is whether ViewWitness preserves uncertainty when evidence is incomplete, contradictory, ambiguous, or differently strong across layers.
+
+Pressure cases should include some of:
+
+```text
+semantic evidence disagrees with authored-paint evidence
+ambiguous/duplicate authored identity prevents unique continuity
+geometry evidence exists while raster evidence is missing or weak
+raster appearance suggests a problem without trustworthy attribution
+partial capture or unverified binding evidence
+multiple plausible repair hypotheses survive the available evidence
+```
+
+The acceptance target is deliberately conservative: the system should distinguish observed, derived, intended, inferred, and unknown facts; expose ambiguity; and refuse to invent a linkage or repair certainty that the evidence does not support.
 
 MCP remains a plausible integration surface later, but the canonical model and verification architecture must remain independent of MCP. Observation and control stay conceptually separate; ViewWitness must remain useful without mutation authority.
 
@@ -360,6 +394,6 @@ Architecture, ontology, format design, example design, review, and integration r
 
 Good bounded delegation surfaces include repetitive mappings, showcase gallery expansion after acceptance cases are fixed, CLI polish after behavior is established, and mechanical protocol/tooling work.
 
-Stage E established a stronger bounded use: a coding agent may own a repair hypothesis inside a blinded task package while ViewWitness retains independent observation and acceptance authority. That does not transfer architectural ownership to the agent.
+Stages E and F establish a stronger bounded use: a coding agent may own a repair hypothesis inside a blinded task package while ViewWitness retains independent observation and acceptance authority. That does not transfer architectural ownership to the agent.
 
-Stage F should reuse that exact trust topology rather than broadening Codex authority: the agent gets another bounded defect specimen; the director and trusted verifier still own the evidence contract and acceptance decision.
+Stage G is primarily an evidence/epistemology design milestone. Codex should only be used where a bounded implementation or blinded-agent specimen is actually part of the experiment; it does not become the default owner of ViewWitness work.
