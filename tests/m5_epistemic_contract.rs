@@ -44,10 +44,7 @@ fn m5_epistemic_contract_preserves_absence_vs_contradiction() {
     assert!(!contradictory_visibility.visibility_known());
 }
 
-fn binding(
-    verified_at_end_pass: bool,
-    kind: Option<EguiPaintKind>,
-) -> EguiAuthoredPaintBinding {
+fn binding(verified_at_end_pass: bool, kind: Option<EguiPaintKind>) -> EguiAuthoredPaintBinding {
     EguiAuthoredPaintBinding {
         authored_binding_id: Some("center".into()),
         binding_evidence: "observed".into(),
