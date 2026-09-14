@@ -332,8 +332,12 @@ fn write_capture_binding(
     )
     .expect("writing to String cannot fail");
     if !consistency.conflicts.is_empty() {
-        write!(output, " evidence_conflicts={}", json(&consistency.conflicts))
-            .expect("writing to String cannot fail");
+        write!(
+            output,
+            " evidence_conflicts={}",
+            json(&consistency.conflicts)
+        )
+        .expect("writing to String cannot fail");
     }
     if let Some(kind) = binding.kind {
         write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");
@@ -419,8 +423,12 @@ fn write_binding_delta(output: &mut String, prefix: &str, delta: &EguiAuthoredBi
     )
     .expect("writing to String cannot fail");
     if !consistency.conflicts.is_empty() {
-        write!(output, " evidence_conflicts={}", json(&consistency.conflicts))
-            .expect("writing to String cannot fail");
+        write!(
+            output,
+            " evidence_conflicts={}",
+            json(&consistency.conflicts)
+        )
+        .expect("writing to String cannot fail");
     }
     if let Some(kind) = binding.kind {
         write!(output, " kind={}", json(&kind)).expect("writing to String cannot fail");

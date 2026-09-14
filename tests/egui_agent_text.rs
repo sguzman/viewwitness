@@ -219,9 +219,10 @@ relations: []
         .find(|line| line.contains("authored_binding_id=\"contradictory\""))
         .expect("contradictory binding line");
     assert!(contradictory.contains("evidence_consistency=\"contradictory\""));
-    assert!(contradictory.contains(
-        "evidence_conflicts=[\"unverified_with_kind\",\"unverified_with_bounds\"]"
-    ));
+    assert!(
+        contradictory
+            .contains("evidence_conflicts=[\"unverified_with_kind\",\"unverified_with_bounds\"]")
+    );
     assert!(contradictory.contains("visible_fraction=unknown"));
     assert!(!contradictory.contains("visible_fraction=1"));
 }
